@@ -1294,17 +1294,6 @@
         border-radius: 0 0 4px 4px;
     }
 
-    .git-warning {
-        padding: 1rem;
-        background: #fff8e1;
-        border-left: 4px solid #ffc107;
-        color: #856404;
-        font-size: 0.875rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-    }
-
     .advanced-grid {
         display: flex;
         align-items: center;
@@ -1487,10 +1476,6 @@
         color: var(--cds-support-success, #24a148);
     }
 
-    .updater-ready {
-        color: var(--cds-support-success, #24a148);
-    }
-
     .updater-error {
         color: var(--cds-support-error, #da1e28);
     }
@@ -1554,23 +1539,6 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
-    }
-
-    .updater-downloading {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .updater-download-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: var(--cds-interactive-01);
-    }
-
-    .updater-download-header strong {
-        font-size: 0.875rem;
     }
 
     .updater-install-failed {

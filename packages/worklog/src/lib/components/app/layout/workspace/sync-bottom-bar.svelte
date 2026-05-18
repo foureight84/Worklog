@@ -117,14 +117,6 @@
         color: var(--cds-text-02);
     }
 
-    .status-icon-connected {
-        color: var(--cds-support-01);
-    }
-
-    .status-icon-disconnected {
-        color: var(--cds-support-02);
-    }
-
     .dot {
         width: 8px;
         height: 8px;
