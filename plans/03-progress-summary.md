@@ -116,6 +116,12 @@
 ---
 
 ## PRE-EXISTING ISSUES (not introduced by this migration)
-1. Unused `@ts-expect-error` in vite.config.js line 5
-2. 8 unused CSS selectors across settings page and sync-bottom-bar (from removed Git sync UI)
+1. ~~Unused `@ts-expect-error` in vite.config.js line 5~~ — **FIXED** (commit 44a3fa8)
+2. ~~8 unused CSS selectors across settings page and sync-bottom-bar~~ — **FIXED** (commit 44a3fa8)
 3. `@tauri-apps/plugin-sql` still in package.json dependencies (Phase 4 will remove)
+
+## UPDATED STATE (after lint fix commit 44a3fa8)
+- `bun run check`: **0 errors, 0 warnings**
+- `bun run build`: succeeds
+- Server boots on port 3000 (verified)
+- See plans/04-progress-summary.md for the full updated summary
