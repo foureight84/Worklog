@@ -32,7 +32,8 @@
     } from "$lib/updater";
     import type { ExportFormat, ExportMode } from "$lib/db/mappers";
     import { useSyncConfig } from "$lib/sync/sync-config.svelte";
-      import type { SyncStatus } from "$lib/sync/types";
+    import type { SyncStatus } from "$lib/sync/types";
+    import { isDesktop } from "$lib/environment";
     import { useAppZoom } from "$lib/hooks/app-zoom.svelte";
     import ZoomControls from "$lib/components/app/layout/workspace/zoom-controls.svelte";
     import {
@@ -465,6 +466,7 @@
                         </section>
                     {/if}
 
+                {#if isDesktop()}
                     {#if matchesSearch("Updates Check for updates Application")}
                         <section class="settings-section">
                             <h2>Application Updates</h2>
@@ -660,6 +662,7 @@
                             </div>
                         </section>
                     {/if}
+                {/if}
                 </div>
             {/if}
 
@@ -882,10 +885,10 @@
                 </div>
             {/if}
 
-           <!-- ── Sync Category ──────────────────────────────────────── -->
+            <!-- ── Sync Category ──────────────────────────────────────── -->
             {#if activeCategory === "sync"}
                 <div class="category-view">
-                    {#if matchesSearch("Git Synchronization Personal Access Token GitHub Auto-sync Server URL Auth Token")}
+                    {#if matchesSearch(isDesktop() ? "Git Synchronization Personal Access Token GitHub Auto-sync Server URL Auth Token" : "Git Synchronization Personal Access Token GitHub")}
                         <section class="settings-section">
                             <div class="header-with-status">
                                 <div class="header-with-tag">
@@ -899,6 +902,7 @@
                                 Connect desktop clients to this server via libsql sync.
                             </p>
 
+                            {#if isDesktop()}
                             <div class="sync-form">
                                 <TextInput
                                     id="sync-primary-url"
@@ -943,7 +947,10 @@
                                 >
                                     Save Configuration
                                 </Button>
+                            </div>
+                            {/if}
 
+                            {#if !isDesktop()}
                                 <div class="manual-actions">
                                     <h3>Desktop Token</h3>
                                     <p class="section-desc">
@@ -971,7 +978,7 @@
                                         </p>
                                     {/if}
                                 </div>
-                            </div>
+                            {/if}
                         </section>
                     {/if}
                 </div>

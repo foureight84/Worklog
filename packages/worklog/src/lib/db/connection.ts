@@ -2,13 +2,10 @@ import type { WorklogDB } from './types';
 import { seedDefaultTicketTypes } from './types';
 import { createWebDB } from './connection-web';
 import { createDesktopDB } from './connection-desktop';
+import { isDesktop } from '$lib/environment';
 
 let _db: WorklogDB | null = null;
 let _dbWorkspacePath: string | undefined = undefined;
-
-function isDesktop(): boolean {
-    return typeof window !== 'undefined' && !!(window as any).__TAURI__;
-}
 
 export async function getDb(workspacePath?: string): Promise<WorklogDB> {
     // ── Architecture: this is the CLIENT-SIDE DB connection path.

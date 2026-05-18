@@ -11,6 +11,7 @@
 	import { useCommandPalette } from "$lib/hooks/command-palette.svelte";
 	import { useAppZoom } from "$lib/hooks/app-zoom.svelte";
 	import { notifications } from "$lib/hooks/notifications.svelte";
+	import { isDesktop } from "$lib/environment";
 	import {
 		buildCommandActions,
 		buildShortcuts,
@@ -123,7 +124,7 @@
 		toggleTheme,
 		refreshApp,
 		closeWorkspace,
-		openWorkspace: openWorkspaceFolder,
+		...(isDesktop() ? { openWorkspace: openWorkspaceFolder } : {}),
 		exportData,
 		importData,
 	};
@@ -139,10 +140,10 @@
 		palette.registerActions(commandActions);
 	});
 
-	// ── Global keyboard handler ────────────────────────────────────────────
-	function onKeydown(e: KeyboardEvent) {
-		// Zoom Shortcuts
-		if (e.ctrlKey || e.metaKey) {
+// ── Global keyboard handler ────────────────────────────────────────────
+function onKeydown(e: KeyboardEvent) {
+	// Zoom Shortcuts (desktop only — browser handles Ctrl+/- natively)
+	if (isDesktop() && (e.ctrlKey || e.metaKey)) {
 			if (e.key === "=" || e.key === "+") {
 				e.preventDefault();
 				appZoom.zoomIn();
@@ -166,18 +167,19 @@
 		handleGlobalShortcut(e, shortcuts);
 	}
 
-	// ── Context menu prevention ────────────────────────────────────────────
-	const handleContextmenu = (event: MouseEvent) => {
-		event.preventDefault();
+// ── Context menu prevention (desktop only) ───────────────────────────────
+const handleContextmenu = (event: MouseEvent) => {
+	event.preventDefault();
+};
+
+$effect(() => {
+	if (!isDesktop()) return;
+	document.addEventListener("contextmenu", handleContextmenu);
+
+	return () => {
+		document.removeEventListener("contextmenu", handleContextmenu);
 	};
-
-	$effect(() => {
-		document.addEventListener("contextmenu", handleContextmenu);
-
-		return () => {
-			document.removeEventListener("contextmenu", handleContextmenu);
-		};
-	});
+});
 
 	$effect(() => {
 		if (hasInitializedWorkspace) {

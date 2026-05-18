@@ -29,6 +29,7 @@
 
     import { getWorkspaceShellContext } from "$lib/hooks/workspace-shell-context";
     import SyncBottomBar from "./sync-bottom-bar.svelte";
+    import { isDesktop } from "$lib/environment";
     import ArchivedBoardsModal from "./archived-boards-modal.svelte";
 
     interface WorkspaceSidebarProps {
@@ -402,8 +403,10 @@
         {/if}
     </SideNavItems>
 
-    <div class="sidebar-bottom">
+     <div class="sidebar-bottom">
+        {#if isDesktop()}
         <SyncBottomBar />
+        {/if}
         <div class="archive-bar">
             <Button
                 kind="ghost"

@@ -1,7 +1,7 @@
 # Worklog Webapp Migration - Progress Summary
 
-> Updated: Sunday, May 17, 2026. Covers Phases 0-3 + code review fixes + Docker/sqld fixes.
-> Git branch: `webapp`, 6 commits since base. Pushed to origin/webapp.
+> Updated: Sunday, May 17, 2026. Covers Phases 0-3.5 + code review fixes + Docker/sqld fixes.
+> Git branch: `webapp`, 7 commits since base. Pushed to origin/webapp.
 
 ---
 
@@ -60,23 +60,22 @@
 - **init-db.ts, connection.ts**: use `executeBatch()` for `CREATE_TABLES`
 - Docker stack verified: `docker compose up -d` → both services healthy, webapp on :3000
 
-### Plan Update (NEW)
-- **Phase 3.5 added** to `.hermes/plans/` and `plans/`: Webapp UI Cleanup — 11 tasks to hide desktop-only features (window controls, drag region, sync status, sync bottom bar, settings sync page, updater, right-click prevention, app zoom, openWorkspaceFolder) via conditional rendering with `isDesktop()`/`isWebApp()` guards. New `src/lib/environment.ts` module.
+### Phase 3.5: Webapp UI Cleanup (COMPLETE)
+- Created `src/lib/environment.ts` — shared `isDesktop()`/`isWebApp()` detection (SSR-safe)
+- **app-toolbar.svelte**: Window controls (min/max/close), drag region, sync status label, and resize listener gated behind `isDesktop()`
+- **workspace-sidebar.svelte**: `SyncBottomBar` hidden in webapp mode
+- **connection.ts**: Removed inline `isDesktop()`, imports from shared module
+- **keyboard-shortcuts.ts**: `openWorkspace` callback made optional; conditionally included via spread
+- **workspace.svelte.ts**: Removed inline `isWebApp()`, imports from shared module
+- **+layout.svelte**: `openWorkspace` callback conditional; zoom shortcuts + context menu prevention desktop-only
+- **settings/+page.svelte**: Updates section desktop-only; sync form split — desktop gets server URL/auth token form, webapp gets token generation; `matchesSearch` aware of environment
+- svelte-check: 0 errors, 0 warnings
 
-### Code Review Fixes (13 issues found and fixed)
-All issues identified during code review were fixed:
-- jwt.ts: lazy env evaluation, claim validation, shared getServerEnv
-- init-db.ts: race condition fix with in-flight promise
-- SyncEngine: accepts getDb factory instead of null
-- Settings: POST method + clientId for token generation
-- sync-scheduler: persists last_synced_at to DB
-- workspace.svelte.ts: removed redundant runMigrations calls
-- connection-desktop.ts: skips empty syncUrl
-- token endpoint: proper JSON parse error handling (400 vs 500)
-- sync-config: proper inline types instead of any
-- docker-compose: healthchecks + depends_on condition
-- WorklogDB interface: added sync() method
-- libsql-wrapper: implemented sync()
+### Phase 3.5 Code Review Fixes (3 issues found and fixed)
+All issues identified during code review of the Phase 3.5 changes were fixed:
+- **+layout.svelte:12-14** — Fixed indentation: 3 import lines changed from spaces to tabs (matching file convention)
+- **settings/+page.svelte:35** — Fixed indentation: `import type { SyncStatus }` had extra leading spaces
+- **settings/+page.svelte:891** — `matchesSearch` now conditional on `isDesktop()` so webapp users searching "Server URL" or "Auth Token" (desktop-only terms) don't see an empty section
 
 ### Pre-existing Lint Fixes (1 error + 9 warnings resolved)
 - Removed unused `@ts-expect-error` in vite.config.js
@@ -87,11 +86,6 @@ All issues identified during code review were fixed:
 ---
 
 ## WHAT'S NOT DONE
-
-### Phase 3.5: Webapp UI Cleanup (NEW — PLANNED)
-- 11 tasks to hide desktop-only UI in webapp mode (conditional rendering, single codebase)
-- New file: `src/lib/environment.ts` (shared isDesktop/isWebApp detection)
-- See `01-architecture-overview.md` Phase 3.5 for full task list
 
 ### Phase 4: Desktop Client Adaptation (NOT STARTED)
 - Step 4.1: Remove `tauri-plugin-sql` from Cargo.toml
@@ -153,13 +147,14 @@ All issues identified during code review were fixed:
 
 ## FILES CHANGED SUMMARY
 
-### New files (10):
+### New files (11):
 - `src/lib/server/jwt.ts`
 - `src/lib/server/env.ts`
 - `src/lib/server/init-db.ts`
 - `src/routes/api/sync/token/+server.ts`
 - `src/hooks.server.ts`
 - `src/app.d.ts`
+- `src/lib/environment.ts`
 - `Dockerfile`
 - `docker-compose.yml`
 - `.dockerignore`
@@ -191,11 +186,12 @@ All issues identified during code review were fixed:
 ## CURRENT STATE
 
 - Branch: `webapp`
-- Commits: 6 (feat, fix, chore, docs, cr-fix, docker-sqld-fixes)
+- Commits: 7 (feat, fix, chore, docs, cr-fix, docker-sqld-fixes, phase-3.5-ui-cleanup)
 - `bun run check`: 0 errors, 0 warnings
 - `bun run build`: succeeds, produces build/index.js
 - Server boots on port 3000 (verified with `bun build/index.js`)
 - Docker stack verified (`docker compose up -d` → both services healthy)
+- Phase 3.5 complete: webapp UI cleanup — all desktop-only features gated behind `isDesktop()`
 - Pushed to origin/webapp
 
 ---

@@ -74,7 +74,7 @@ export interface AppCallbacks {
     toggleTheme: () => void;
     refreshApp: () => void;
     closeWorkspace: () => void;
-    openWorkspace: () => void;
+    openWorkspace?: () => void;
     exportData: () => void;
     importData: () => void;
 }
@@ -153,7 +153,7 @@ export function buildCommandActions(callbacks: AppCallbacks): CommandAction[] {
             icon: Close,
             run: callbacks.closeWorkspace,
         },
-        {
+        ...(callbacks.openWorkspace ? [{
             id: "open-workspace",
             label: "Open Workspace",
             subtitle: "Open a different workspace folder",
@@ -161,7 +161,7 @@ export function buildCommandActions(callbacks: AppCallbacks): CommandAction[] {
             category: "Workspace",
             icon: FolderOpen,
             run: callbacks.openWorkspace,
-        },
+        }] : []),
         {
             id: "export-data",
             label: "Export Data",
@@ -196,7 +196,7 @@ export function buildShortcuts(callbacks: AppCallbacks & { openCommandPalette: (
         { key: "j", ctrlOrCmd: true, label: "Toggle Theme", run: callbacks.toggleTheme },
         { key: "r", ctrlOrCmd: true, shift: true, label: "Refresh Application", run: callbacks.refreshApp },
         { key: "w", ctrlOrCmd: true, shift: true, label: "Close Workspace", run: callbacks.closeWorkspace },
-        { key: "o", ctrlOrCmd: true, label: "Open Workspace", run: callbacks.openWorkspace },
+        ...(callbacks.openWorkspace ? [{ key: "o", ctrlOrCmd: true, label: "Open Workspace", run: callbacks.openWorkspace }] : []),
         { key: "e", ctrlOrCmd: true, shift: true, label: "Export Data", run: callbacks.exportData },
     ];
 }

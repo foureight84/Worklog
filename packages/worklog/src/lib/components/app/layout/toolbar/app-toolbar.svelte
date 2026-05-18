@@ -21,6 +21,7 @@
 
     import { Theme } from "carbon-components-svelte";
     import { useSyncConfig } from "$lib/sync/sync-config.svelte";
+    import { isDesktop } from "$lib/environment";
 
     type WindowControlAction = "minimize" | "toggle-maximize" | "close";
 
@@ -68,6 +69,7 @@
     };
 
     $effect(() => {
+        if (!isDesktop()) return;
         let unlistenResize: (() => void) | undefined;
         let isAlive = true;
 
@@ -128,6 +130,7 @@
     const syncConfig = useSyncConfig();
 
     const formattedSyncTime = $derived.by(() => {
+        if (!isDesktop()) return "";
         if (syncConfig.status === 'syncing') return "Syncing...";
         if (syncConfig.status === 'connected') return "Connected";
         if (syncConfig.status === 'disconnected') return "Disconnected";
@@ -147,12 +150,14 @@
         alt=""
         srcset=""
     />
+   {#if isDesktop()}
     <div
         aria-hidden="true"
         class="toolbar-drag-region"
         data-tauri-drag-region
         ondblclick={() => runWindowControl("toggle-maximize")}
     ></div>
+    {/if}
 
     {#if formattedSyncTime}
         <div class="sync-status">
@@ -197,6 +202,7 @@
             </Button>
         {/if}
 
+   {#if isDesktop()}
         <Button onclick={() => runWindowControl("minimize")} kind="ghost">
             <Subtract />
         </Button>
@@ -215,6 +221,7 @@
         <Button onclick={() => runWindowControl("close")} kind="danger-ghost">
             <Close />
         </Button>
+    {/if}
     </HeaderUtilities>
 </Header>
 

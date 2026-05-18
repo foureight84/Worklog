@@ -1,12 +1,9 @@
 import type { WorkspaceMeta } from '$lib/components/app/types';
 import { getDb, closeDb, WorkspaceRepo } from '$lib/db';
+import { isWebApp } from '$lib/environment';
 
 const WORKSPACE_PATH_KEY = 'last_workspace_path';
 let initInFlight: Promise<void> | null = null;
-
-function isWebApp(): boolean {
-    return typeof window !== 'undefined' && !(window as any).__TAURI__;
-}
 
 function getSavedWorkspacePath(): string | null {
     if (typeof window === 'undefined') return null;
