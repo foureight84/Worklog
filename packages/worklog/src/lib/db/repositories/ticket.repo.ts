@@ -1,4 +1,4 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from '../types';
 import type { Ticket, CreateTicketInput, UpdateTicketInput } from '$lib/components/app/types';
 import { generateId } from '$lib/utils';
 
@@ -16,7 +16,7 @@ function deserialize(row: any): Ticket {
 }
 
 export async function listTickets(
-    db: Database,
+    db: WorklogDB,
     board_id: string,
     options: { limit?: number; offset?: number; status?: string } = {}
 ): Promise<Ticket[]> {
@@ -39,33 +39,33 @@ export async function listTickets(
         params.push(options.offset);
     }
 
-    const rows = await db.select<any[]>(query, params);
+    const rows = await db.select<any>(query, params);
     return rows.map(deserialize);
 }
 
 export async function countTicketsByStatus(
-    db: Database,
+    db: WorklogDB,
     board_id: string,
     status: string
 ): Promise<number> {
-    const rows = await db.select<{ count: number }[]>(
+    const rows = await db.select<{ count: number }>(
         `SELECT COUNT(*) as count FROM tickets WHERE board_id = ? AND status = ?`,
         [board_id, status]
     );
     return rows[0]?.count ?? 0;
 }
 
-export async function getTicketById(db: Database, id: string): Promise<Ticket | null> {
-    const rows = await db.select<any[]>(
+export async function getTicketById(db: WorklogDB, id: string): Promise<Ticket | null> {
+    const rows = await db.select<any>(
         `SELECT * FROM tickets WHERE id = ?`, [id]
     );
     return rows[0] ? deserialize(rows[0]) : null;
 }
 
-export async function createTicket(db: Database, input: CreateTicketInput): Promise<Ticket> {
+export async function createTicket(db: WorklogDB, input: CreateTicketInput): Promise<Ticket> {
     let position = input.position;
     if (position === undefined) {
-        const rows = await db.select<{maxPos: number | null}[]>(
+        const rows = await db.select<{maxPos: number | null}>(
             `SELECT MAX(position) as maxPos FROM tickets WHERE board_id = ? AND status = ?`,
             [input.board_id, input.status ?? 'todo']
         );
@@ -110,7 +110,7 @@ export async function createTicket(db: Database, input: CreateTicketInput): Prom
     return ticket;
 }
 
-export async function updateTicket(db: Database, id: string, input: UpdateTicketInput): Promise<Ticket> {
+export async function updateTicket(db: WorklogDB, id: string, input: UpdateTicketInput): Promise<Ticket> {
     const existing = await getTicketById(db, id);
     if (!existing) throw new Error(`Ticket ${id} not found`);
 
@@ -140,6 +140,6 @@ export async function updateTicket(db: Database, id: string, input: UpdateTicket
     return updated;
 }
 
-export async function deleteTicket(db: Database, id: string): Promise<void> {
+export async function deleteTicket(db: WorklogDB, id: string): Promise<void> {
     await db.execute(`DELETE FROM tickets WHERE id = ?`, [id]);
 }

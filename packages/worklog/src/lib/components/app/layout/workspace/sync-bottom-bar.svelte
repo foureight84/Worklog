@@ -1,122 +1,20 @@
 <script lang="ts">
     import {
-        WatsonHealthLaunchStudy_1,
-        WatsonHealthLaunchStudy_2,
         Checkmark,
-        ErrorFilled,
-        Cloud,
+        WarningAltFilled,
+        CloudUpload,
     } from "carbon-icons-svelte";
     import { Button } from "carbon-components-svelte";
 
-    import { syncState } from "$lib/sync/sync-scheduler.svelte";
     import { useSyncConfig } from "$lib/sync/sync-config.svelte";
 
-    import { useWorkspace } from "$lib/hooks/workspace.svelte";
-    import { SyncEngine } from "$lib/sync/sync-engine";
-    import { getDb } from "$lib/db";
-
-    import { notifications } from "$lib/hooks/notifications.svelte";
-
     const syncConfig = useSyncConfig();
-    const workspace = useWorkspace();
-
-    let manualSyncing = $state(false);
-    let lastResult = $state<{
-        status: "success" | "error" | "conflict";
-        message: string;
-    } | null>(null);
 
     const isSyncEnabled = $derived(
-        !!syncConfig.config.remote_url && !!syncConfig.config.access_token,
+        !!syncConfig.config.primary_url,
     );
-    const isWorking = $derived(syncState.isSyncing || manualSyncing);
-
-    async function handlePull() {
-        if (isWorking || !workspace.path) return;
-        manualSyncing = true;
-        lastResult = null;
-
-        try {
-            const db = await getDb(workspace.path);
-            const engine = new SyncEngine(workspace.path);
-            await engine.initialize(syncConfig.config);
-            const result = await engine.pull(db, syncConfig.config);
-
-            lastResult = result;
-            if (result.status === "success") {
-                syncConfig.updateLastSynced(result.timestamp);
-                await syncConfig.save(db);
-                notifications.add({
-                    kind: "success",
-                    title: "Pull Successful",
-                    subtitle: result.message,
-                });
-            } else {
-                notifications.add({
-                    kind: result.status === "conflict" ? "warning" : "error",
-                    title:
-                        result.status === "conflict"
-                            ? "Sync Conflict"
-                            : "Pull Failed",
-                    subtitle: result.message,
-                });
-            }
-        } catch (e) {
-            notifications.add({
-                kind: "error",
-                title: "Error",
-                subtitle: String(e),
-            });
-        } finally {
-            manualSyncing = false;
-        }
-    }
-
-    async function handlePush() {
-        if (isWorking || !workspace.path) return;
-        manualSyncing = true;
-        lastResult = null;
-
-        try {
-            const db = await getDb(workspace.path);
-            const engine = new SyncEngine(workspace.path);
-            await engine.initialize(syncConfig.config);
-            const result = await engine.push(db, syncConfig.config);
-
-            lastResult = result;
-            if (result.status === "success") {
-                syncConfig.updateLastSynced(result.timestamp);
-                await syncConfig.save(db);
-                notifications.add({
-                    kind: "success",
-                    title: "Push Successful",
-                    subtitle: result.message,
-                });
-            } else {
-                notifications.add({
-                    kind: "error",
-                    title: "Push Failed",
-                    subtitle: result.message,
-                });
-            }
-        } catch (e) {
-            notifications.add({
-                kind: "error",
-                title: "Error",
-                subtitle: String(e),
-            });
-        } finally {
-            manualSyncing = false;
-        }
-    }
-
-    function formatTimeRemaining(ms: number) {
-        if (ms <= 0) return "Due now";
-        const seconds = Math.floor(ms / 1000);
-        if (seconds < 60) return `${seconds}s`;
-        const minutes = Math.floor(seconds / 60);
-        return `${minutes}m ${seconds % 60}s`;
-    }
+    const status = $derived(syncConfig.status);
+    const isWorking = $derived(status === 'syncing');
 
     function formatLastSynced(dateStr: string | null) {
         if (!dateStr) return "Never";
@@ -126,13 +24,22 @@
             minute: "2-digit",
         });
     }
+
+    function getStatusLabel() {
+        switch (status) {
+            case 'connected': return "Connected";
+            case 'disconnected': return "Disconnected";
+            case 'syncing': return "Syncing...";
+            default: return "Unknown";
+        }
+    }
 </script>
 
 <div class="sync-bar" class:is-syncing={isWorking}>
     {#if !isSyncEnabled}
         <div class="sync-info">
             <div class="status-icon">
-                <Cloud size={16} class="cloud-icon disabled" />
+                <span class="dot dot-gray"></span>
             </div>
             <div class="status-text">
                 <span class="label">Sync not configured</span>
@@ -144,29 +51,19 @@
             <div class="status-icon">
                 {#if isWorking}
                     <div class="spinner"></div>
-                {:else if lastResult?.status === "error"}
-                    <ErrorFilled size={16} class="error-icon" />
+                {:else if status === 'connected'}
+                    <Checkmark size={16} class="status-icon-connected" />
                 {:else}
-                    <Cloud size={16} class="cloud-icon" />
+                    <WarningAltFilled size={16} class="status-icon-disconnected" />
                 {/if}
             </div>
             <div class="status-text">
-                {#if isWorking}
-                    <span class="label">Syncing...</span>
-                {:else}
-                    <span class="label"
-                        >Last sync: {formatLastSynced(
-                            syncConfig.config.last_synced_at,
-                        )}</span
-                    >
-                    {#if syncConfig.config.auto_sync && syncState.timeRemainingMs > 0}
-                        <span class="subtext"
-                            >Next in {formatTimeRemaining(
-                                syncState.timeRemainingMs,
-                            )}</span
-                        >
-                    {/if}
-                {/if}
+                <span class="label">{getStatusLabel()}</span>
+                <span class="subtext"
+                    >Last sync: {formatLastSynced(
+                        syncConfig.config.last_synced_at,
+                    )}</span
+                >
             </div>
         </div>
 
@@ -174,22 +71,11 @@
             <Button
                 kind="ghost"
                 size="small"
-                icon={WatsonHealthLaunchStudy_1}
-                iconDescription="Pull changes from remote"
+                icon={CloudUpload}
+                iconDescription="Sync now"
                 tooltipPosition="top"
                 tooltipAlignment="end"
                 disabled={isWorking}
-                on:click={handlePull}
-            />
-            <Button
-                kind="ghost"
-                size="small"
-                icon={WatsonHealthLaunchStudy_2}
-                iconDescription="Push changes to remote"
-                tooltipPosition="top"
-                tooltipAlignment="end"
-                disabled={isWorking}
-                on:click={handlePush}
             />
         </div>
     {/if}
@@ -231,17 +117,23 @@
         color: var(--cds-text-02);
     }
 
-    .cloud-icon {
-        color: var(--cds-interactive-01);
-    }
-
-    .cloud-icon.disabled {
-        color: var(--cds-text-03);
-        opacity: 0.5;
-    }
-
-    .error-icon {
+    .status-icon-connected {
         color: var(--cds-support-01);
+    }
+
+    .status-icon-disconnected {
+        color: var(--cds-support-02);
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .dot-gray {
+        background: var(--cds-text-03);
+        opacity: 0.5;
     }
 
     .status-text {

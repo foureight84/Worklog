@@ -32,8 +32,7 @@
     } from "$lib/updater";
     import type { ExportFormat, ExportMode } from "$lib/db/mappers";
     import { useSyncConfig } from "$lib/sync/sync-config.svelte";
-    import { SyncEngine } from "$lib/sync/sync-engine";
-    import type { SyncStatus } from "$lib/sync/types";
+      import type { SyncStatus } from "$lib/sync/types";
     import { useAppZoom } from "$lib/hooks/app-zoom.svelte";
     import ZoomControls from "$lib/components/app/layout/workspace/zoom-controls.svelte";
     import {
@@ -135,16 +134,12 @@
     }
 
     // ── Sync state ─────────────────────────────────────────────────────────
-    let syncRemoteUrl = $state("");
-    let syncAccessToken = $state("");
-    let syncBranch = $state("main");
-    let syncGitName = $state("");
-    let syncGitEmail = $state("");
+    let syncPrimaryUrl = $state("");
+    let syncAuthToken = $state("");
     let syncAutoSync = $state(false);
-    let syncAutoSyncInterval = $state(15);
     let syncLoading = $state(false);
     let syncLoadingMessage = $state("");
-    let gitAvailable = $state<boolean | null>(null);
+    let generatedToken = $state<string | null>(null);
 
     // Load sync config on mount
     $effect(() => {
@@ -158,17 +153,9 @@
         try {
             const db = await getDb(workspace.path);
             await syncConfig.load(db);
-            syncRemoteUrl = syncConfig.config.remote_url;
-            syncAccessToken = syncConfig.config.access_token;
-            syncBranch = syncConfig.config.branch;
-            syncGitName = syncConfig.config.git_name;
-            syncGitEmail = syncConfig.config.git_email;
+            syncPrimaryUrl = syncConfig.config.primary_url;
+            syncAuthToken = syncConfig.config.auth_token;
             syncAutoSync = syncConfig.config.auto_sync;
-            syncAutoSyncInterval = syncConfig.config.auto_sync_interval;
-
-            // Check git availability
-            const engine = new SyncEngine(workspace.path);
-            gitAvailable = await engine.isGitAvailable();
         } catch (e) {
             console.error("Failed to load sync config", e);
         }
@@ -179,20 +166,16 @@
         try {
             const db = await getDb(workspace.path);
             syncConfig.config = {
-                remote_url: syncRemoteUrl,
-                access_token: syncAccessToken,
-                branch: syncBranch,
-                git_name: syncGitName,
-                git_email: syncGitEmail,
+                primary_url: syncPrimaryUrl,
+                auth_token: syncAuthToken,
                 auto_sync: syncAutoSync,
-                auto_sync_interval: syncAutoSyncInterval,
                 last_synced_at: syncConfig.config.last_synced_at,
             };
             await syncConfig.save(db);
             notifications.add({
                 kind: "success",
                 title: "Sync Settings Saved",
-                subtitle: "Your Git sync configuration has been updated.",
+                subtitle: "Your sync configuration has been updated.",
                 timeout: 3000,
             });
         } catch (error) {
@@ -205,100 +188,33 @@
         }
     }
 
-    async function handleSyncPush() {
-        if (!workspace.path) return;
-        syncLoading = true;
-        syncLoadingMessage = "Pushing to remote...";
-        syncConfig.setStatus("pushing");
+    async function handleGenerateToken() {
         try {
-            const db = await getDb(workspace.path);
-            const engine = new SyncEngine(workspace.path);
-            await engine.initialize(syncConfig.config);
-            const result = await engine.push(db, syncConfig.config);
-
-            if (result.status === "success") {
-                syncConfig.updateLastSynced(result.timestamp);
-                await syncConfig.save(db);
+            const resp = await fetch("/api/sync/token");
+            const data = await resp.json();
+            if (data.token) {
+                generatedToken = data.token;
                 notifications.add({
                     kind: "success",
-                    title: "Push Successful",
-                    subtitle: result.message,
-                    timeout: 3000,
+                    title: "Token Generated",
+                    subtitle: "Copy this token into your desktop client.",
+                    timeout: 5000,
                 });
             } else {
                 notifications.add({
                     kind: "error",
-                    title: "Push Failed",
-                    subtitle: result.message,
+                    title: "Token Generation Failed",
+                    subtitle: data.error || "Unknown error",
                     timeout: 5000,
                 });
-            }
-            syncConfig.setStatus(
-                result.status === "success" ? "idle" : "error",
-            );
-        } catch (error) {
-            notifications.add({
-                kind: "error",
-                title: "Push Failed",
-                subtitle: String(error),
-                timeout: 5000,
-            });
-            syncConfig.setStatus("error");
-        } finally {
-            syncLoading = false;
-            syncLoadingMessage = "";
-        }
-    }
-
-    async function handleSyncPull() {
-        if (!workspace.path) return;
-        syncLoading = true;
-        syncLoadingMessage = "Pulling from remote...";
-        syncConfig.setStatus("pulling");
-        try {
-            const db = await getDb(workspace.path);
-            const engine = new SyncEngine(workspace.path);
-            await engine.initialize(syncConfig.config);
-            const result = await engine.pull(db, syncConfig.config);
-
-            if (result.status === "success") {
-                syncConfig.updateLastSynced(result.timestamp);
-                await syncConfig.save(db);
-                notifications.add({
-                    kind: "success",
-                    title: "Pull Successful",
-                    subtitle: result.message,
-                    timeout: 3000,
-                });
-                window.location.reload();
-            } else if (result.status === "conflict") {
-                notifications.add({
-                    kind: "warning",
-                    title: "Merge Conflict",
-                    subtitle: result.message,
-                    timeout: 8000,
-                });
-                syncConfig.setStatus("conflict");
-            } else {
-                notifications.add({
-                    kind: "error",
-                    title: "Pull Failed",
-                    subtitle: result.message,
-                    timeout: 5000,
-                });
-                syncConfig.setStatus("error");
             }
         } catch (error) {
             notifications.add({
                 kind: "error",
-                title: "Pull Failed",
+                title: "Token Generation Failed",
                 subtitle: String(error),
                 timeout: 5000,
             });
-            syncConfig.setStatus("error");
-        } finally {
-            syncLoading = false;
-            syncLoadingMessage = "";
         }
     }
 
@@ -386,25 +302,21 @@
 
     // ── Derived ────────────────────────────────────────────────────────────
     const syncConfigured = $derived(
-        syncRemoteUrl.length > 0 && syncAccessToken.length > 0,
+        syncPrimaryUrl.length > 0,
     );
     const syncStatusLabel = $derived.by(() => {
         const s = syncConfig.status;
-        if (s === "not_configured") return "Not configured";
-        if (s === "idle") return "Ready";
-        if (s === "pushing") return "Pushing…";
-        if (s === "pulling") return "Pulling…";
-        if (s === "conflict") return "Conflict";
-        if (s === "error") return "Error";
+        if (s === "connected") return "Connected";
+        if (s === "syncing") return "Syncing...";
+        if (s === "disconnected") return "Disconnected";
         return s;
     });
     const syncStatusColor = $derived.by(
-        (): "green" | "red" | "blue" | "warm-gray" | "magenta" => {
+        (): "green" | "red" | "blue" | "warm-gray" => {
             const s = syncConfig.status;
-            if (s === "idle") return "green";
-            if (s === "pushing" || s === "pulling") return "blue";
-            if (s === "error") return "red";
-            if (s === "conflict") return "magenta";
+            if (s === "connected") return "green";
+            if (s === "syncing") return "blue";
+            if (s === "disconnected") return "red";
             return "warm-gray";
         },
     );
@@ -964,78 +876,37 @@
                 </div>
             {/if}
 
-            <!-- ── Sync Category ──────────────────────────────────────── -->
+           <!-- ── Sync Category ──────────────────────────────────────── -->
             {#if activeCategory === "sync"}
                 <div class="category-view">
-                    {#if matchesSearch("Git Synchronization Personal Access Token GitHub Auto-sync")}
+                    {#if matchesSearch("Git Synchronization Personal Access Token GitHub Auto-sync Server URL Auth Token")}
                         <section class="settings-section">
                             <div class="header-with-status">
                                 <div class="header-with-tag">
-                                    <h2>Git Synchronization</h2>
-                                    <Tag type="teal" size="sm">Experimental</Tag
-                                    >
+                                    <h2>Synchronization</h2>
                                 </div>
                                 <Tag type={syncStatusColor} size="sm"
                                     >{syncStatusLabel}</Tag
                                 >
                             </div>
                             <p class="section-desc">
-                                Sync your workspace to a private GitHub
-                                repository using a Personal Access Token.
+                                Connect desktop clients to this server via libsql sync.
                             </p>
-
-                            {#if gitAvailable === false}
-                                <aside class="git-warning" role="alert">
-                                    <strong>Git not found.</strong>
-                                    <span>
-                                        The <code>git</code> command was not found
-                                        on your system. Install Git to use this feature.
-                                    </span>
-                                </aside>
-                            {/if}
 
                             <div class="sync-form">
                                 <TextInput
-                                    id="sync-remote-url"
-                                    labelText="Remote URL"
-                                    placeholder="https://github.com/user/repo.git"
-                                    bind:value={syncRemoteUrl}
-                                    disabled={gitAvailable === false}
+                                    id="sync-primary-url"
+                                    labelText="Server URL"
+                                    placeholder="http://your-server:8080"
+                                    bind:value={syncPrimaryUrl}
                                 />
 
                                 <PasswordInput
-                                    id="sync-access-token"
-                                    labelText="Access Token"
-                                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                                    bind:value={syncAccessToken}
-                                    disabled={gitAvailable === false}
+                                    id="sync-auth-token"
+                                    labelText="Auth Token"
+                                    placeholder="Paste JWT token from webapp settings"
+                                    bind:value={syncAuthToken}
                                 />
-
-                                <div class="settings-grid">
-                                    <TextInput
-                                        id="sync-branch"
-                                        labelText="Branch"
-                                        placeholder="main"
-                                        bind:value={syncBranch}
-                                        disabled={gitAvailable === false}
-                                    />
-
-                                    <TextInput
-                                        id="sync-git-name"
-                                        labelText="Git Name"
-                                        placeholder="Worklog User"
-                                        bind:value={syncGitName}
-                                        disabled={gitAvailable === false}
-                                    />
-
-                                    <TextInput
-                                        id="sync-git-email"
-                                        labelText="Git Email"
-                                        placeholder="user@example.com"
-                                        bind:value={syncGitEmail}
-                                        disabled={gitAvailable === false}
-                                    />
-                                </div>
 
                                 <div class="sync-options">
                                     <Toggle
@@ -1044,46 +915,7 @@
                                         labelA="Off"
                                         labelB="On"
                                         bind:toggled={syncAutoSync}
-                                        disabled={gitAvailable === false}
                                     />
-
-                                    {#if syncAutoSync}
-                                        <Select
-                                            id="sync-auto-sync-interval"
-                                            labelText="Sync Interval"
-                                            bind:selected={syncAutoSyncInterval}
-                                            disabled={gitAvailable === false}
-                                        >
-                                            <SelectItem
-                                                value={1}
-                                                text="Every 1 minutes"
-                                            />
-                                            <SelectItem
-                                                value={5}
-                                                text="Every 5 minutes"
-                                            />
-                                            <SelectItem
-                                                value={15}
-                                                text="Every 15 minutes"
-                                            />
-                                            <SelectItem
-                                                value={30}
-                                                text="Every 30 minutes"
-                                            />
-                                            <SelectItem
-                                                value={60}
-                                                text="Every 1 hour"
-                                            />
-                                            <SelectItem
-                                                value={120}
-                                                text="Every 2 hours"
-                                            />
-                                            <SelectItem
-                                                value={360}
-                                                text="Every 6 hours"
-                                            />
-                                        </Select>
-                                    {/if}
                                 </div>
 
                                 {#if syncConfig.config.last_synced_at}
@@ -1102,36 +934,37 @@
                                 <Button
                                     kind="primary"
                                     onclick={saveSyncConfig}
-                                    disabled={gitAvailable === false}
                                 >
                                     Save Configuration
                                 </Button>
 
-                                {#if syncConfigured && gitAvailable !== false}
-                                    <div class="manual-actions">
-                                        <h3>Manual Actions</h3>
-                                        {#if syncLoading}
-                                            <InlineLoading
-                                                description={syncLoadingMessage}
-                                            />
-                                        {:else}
-                                            <ButtonSet>
-                                                <Button
-                                                    kind="tertiary"
-                                                    onclick={handleSyncPush}
-                                                >
-                                                    Push
-                                                </Button>
-                                                <Button
-                                                    kind="tertiary"
-                                                    onclick={handleSyncPull}
-                                                >
-                                                    Pull
-                                                </Button>
-                                            </ButtonSet>
-                                        {/if}
-                                    </div>
-                                {/if}
+                                <div class="manual-actions">
+                                    <h3>Desktop Token</h3>
+                                    <p class="section-desc">
+                                        Generate a token for desktop clients to authenticate with this server.
+                                    </p>
+                                    <Button
+                                        kind="tertiary"
+                                        onclick={handleGenerateToken}
+                                    >
+                                        Generate New Token
+                                    </Button>
+                                    {#if generatedToken}
+                                        <div class="token-display">
+                                            <code>{generatedToken}</code>
+                                            <Button
+                                                kind="ghost"
+                                                size="small"
+                                                onclick={() => navigator.clipboard.writeText(generatedToken!)}
+                                            >
+                                                Copy
+                                            </Button>
+                                        </div>
+                                        <p class="section-desc">
+                                            Paste this into the Auth Token field on each desktop client.
+                                        </p>
+                                    {/if}
+                                </div>
                             </div>
                         </section>
                     {/if}

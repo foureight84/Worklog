@@ -1,0 +1,14 @@
+node_modules
+dist
+.build
+.svelte-kit
+.git
+.gitignore
+.vscode
+.idea
+*.md
+!.dockerignore
+Dockerfile
+docker-compose.yml
+tauri
+src-tauri

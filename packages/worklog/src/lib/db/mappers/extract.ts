@@ -1,4 +1,4 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from '../types';
 import { WorkspaceRepo, BoardRepo, SettingsRepo, TicketRepo } from '../index';
 import type { WorklogSnapshot, BoardSnapshot } from './types';
 import { EXPORT_VERSION } from './types';
@@ -7,7 +7,7 @@ import { EXPORT_VERSION } from './types';
  * Reads the entire database state into an in-memory WorklogSnapshot.
  * This is the single source of truth for all export and sync operations.
  */
-export async function extractSnapshot(db: Database): Promise<WorklogSnapshot> {
+export async function extractSnapshot(db: WorklogDB): Promise<WorklogSnapshot> {
     const workspaceMeta = await WorkspaceRepo.getWorkspaceMeta(db);
     const appSettings = await SettingsRepo.getSettings(db);
     const boards = await BoardRepo.listBoards(db);

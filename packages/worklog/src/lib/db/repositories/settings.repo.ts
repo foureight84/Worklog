@@ -1,4 +1,4 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from '../types';
 import type { AppSettings, UpdateAppSettingsInput } from '$lib/components/app/types';
 
 function toSettings(row: AppSettings): AppSettings {
@@ -11,7 +11,7 @@ function toSettings(row: AppSettings): AppSettings {
     };
 }
 
-export async function initSettings(db: Database): Promise<void> {
+export async function initSettings(db: WorklogDB): Promise<void> {
     const now = new Date().toISOString();
 
     await db.execute(
@@ -27,10 +27,10 @@ export async function initSettings(db: Database): Promise<void> {
     );
 }
 
-export async function getSettings(db: Database): Promise<AppSettings> {
+export async function getSettings(db: WorklogDB): Promise<AppSettings> {
     await initSettings(db);
 
-    const rows = await db.select<AppSettings[]>(
+    const rows = await db.select<AppSettings>(
         `SELECT author_name, default_branch, autosave_seconds, created_at, updated_at
          FROM app_settings
          WHERE id = 1`,
@@ -40,7 +40,7 @@ export async function getSettings(db: Database): Promise<AppSettings> {
 }
 
 export async function updateSettings(
-    db: Database,
+    db: WorklogDB,
     input: UpdateAppSettingsInput,
 ): Promise<AppSettings> {
     const existing = await getSettings(db);

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export const CREATE_TABLES = `
   CREATE TABLE IF NOT EXISTS workspace_meta (
@@ -58,15 +58,11 @@ export const CREATE_TABLES = `
 
   CREATE TABLE IF NOT EXISTS sync_config (
     id              INTEGER PRIMARY KEY CHECK (id = 1),
-    remote_url      TEXT NOT NULL DEFAULT '',
-    access_token    TEXT NOT NULL DEFAULT '',
-    branch          TEXT NOT NULL DEFAULT 'main',
-    git_name        TEXT NOT NULL DEFAULT '',
-    git_email       TEXT NOT NULL DEFAULT '',
+    primary_url     TEXT NOT NULL DEFAULT '',
+    auth_token      TEXT NOT NULL DEFAULT '',
     auto_sync       INTEGER NOT NULL DEFAULT 0,
-    auto_sync_interval INTEGER NOT NULL DEFAULT 15,
     last_synced_at  TEXT,
-    updated_at      TEXT NOT NULL
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_tickets_board_id ON tickets(board_id);

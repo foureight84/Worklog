@@ -1,9 +1,9 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from '../types';
 import type { Board, CreateBoardInput } from '$lib/components/app/types';
 import { generateId } from '$lib/utils';
 
 export async function listBoards(
-    db: Database,
+    db: WorklogDB,
     options: { limit?: number; offset?: number; archived?: boolean } = {}
 ): Promise<Board[]> {
     const archived = options.archived ?? false;
@@ -23,17 +23,17 @@ export async function listBoards(
         params.push(options.offset);
     }
 
-    return db.select<Board[]>(query, params);
+    return db.select<Board>(query, params);
 }
 
-export async function getBoardById(db: Database, id: string): Promise<Board | null> {
-    const rows = await db.select<Board[]>(
+export async function getBoardById(db: WorklogDB, id: string): Promise<Board | null> {
+    const rows = await db.select<Board>(
         `SELECT * FROM boards WHERE id = ?`, [id]
     );
     return rows[0] ?? null;
 }
 
-export async function createBoard(db: Database, input: CreateBoardInput): Promise<Board> {
+export async function createBoard(db: WorklogDB, input: CreateBoardInput): Promise<Board> {
     const board: Board = {
         id: generateId('BRD'),
         name: input.name,
@@ -52,12 +52,12 @@ export async function createBoard(db: Database, input: CreateBoardInput): Promis
     return board;
 }
 
-export async function deleteBoard(db: Database, id: string): Promise<void> {
+export async function deleteBoard(db: WorklogDB, id: string): Promise<void> {
     // Tickets cascade-deleted automatically via FK
     await db.execute(`DELETE FROM boards WHERE id = ?`, [id]);
 }
 
-export async function archiveBoard(db: Database, id: string): Promise<Board | null> {
+export async function archiveBoard(db: WorklogDB, id: string): Promise<Board | null> {
     const archivedAt = new Date().toISOString();
     await db.execute(
         `UPDATE boards SET archived_at = ?, updated_at = ? WHERE id = ?`,
@@ -66,7 +66,7 @@ export async function archiveBoard(db: Database, id: string): Promise<Board | nu
     return getBoardById(db, id);
 }
 
-export async function unarchiveBoard(db: Database, id: string): Promise<Board | null> {
+export async function unarchiveBoard(db: WorklogDB, id: string): Promise<Board | null> {
     const updatedAt = new Date().toISOString();
     await db.execute(
         `UPDATE boards SET archived_at = NULL, updated_at = ? WHERE id = ?`,
@@ -76,7 +76,7 @@ export async function unarchiveBoard(db: Database, id: string): Promise<Board | 
 }
 
 export async function renameBoard(
-    db: Database,
+    db: WorklogDB,
     id: string,
     name: string,
     description: string,

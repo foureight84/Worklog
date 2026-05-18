@@ -1,4 +1,4 @@
-import type Database from "@tauri-apps/plugin-sql";
+import type { WorklogDB } from '../types';
 
 export interface TicketType {
     id: string;
@@ -10,14 +10,14 @@ export interface TicketType {
     updated_at: string;
 }
 
-export async function getAll(db: Database): Promise<TicketType[]> {
+export async function getAll(db: WorklogDB): Promise<TicketType[]> {
     const rows = await db.select<any[]>(
         "SELECT * FROM ticket_types ORDER BY name ASC"
     );
     return rows.map(mapRow);
 }
 
-export async function getById(db: Database, id: string): Promise<TicketType | null> {
+export async function getById(db: WorklogDB, id: string): Promise<TicketType | null> {
     const rows = await db.select<any[]>(
         "SELECT * FROM ticket_types WHERE id = ?",
         [id]
@@ -25,14 +25,14 @@ export async function getById(db: Database, id: string): Promise<TicketType | nu
     return rows.length > 0 ? mapRow(rows[0]) : null;
 }
 
-export async function getDefault(db: Database): Promise<TicketType | null> {
+export async function getDefault(db: WorklogDB): Promise<TicketType | null> {
     const rows = await db.select<any[]>(
         "SELECT * FROM ticket_types WHERE is_default = 1 LIMIT 1"
     );
     return rows.length > 0 ? mapRow(rows[0]) : null;
 }
 
-export async function create(db: Database, type: Partial<TicketType>): Promise<void> {
+export async function create(db: WorklogDB, type: Partial<TicketType>): Promise<void> {
     const now = new Date().toISOString();
     const id = type.id || crypto.randomUUID();
     
@@ -47,7 +47,7 @@ export async function create(db: Database, type: Partial<TicketType>): Promise<v
     );
 }
 
-export async function update(db: Database, id: string, type: Partial<TicketType>): Promise<void> {
+export async function update(db: WorklogDB, id: string, type: Partial<TicketType>): Promise<void> {
     const now = new Date().toISOString();
     
     if (type.is_default) {
@@ -72,7 +72,7 @@ export async function update(db: Database, id: string, type: Partial<TicketType>
     );
 }
 
-export async function remove(db: Database, id: string): Promise<void> {
+export async function remove(db: WorklogDB, id: string): Promise<void> {
     await db.execute("DELETE FROM ticket_types WHERE id = ?", [id]);
 }
 

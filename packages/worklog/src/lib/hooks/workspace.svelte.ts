@@ -5,6 +5,10 @@ import { runMigrations } from '$lib/db/migrate';
 const WORKSPACE_PATH_KEY = 'last_workspace_path';
 let initInFlight: Promise<void> | null = null;
 
+function isWebApp(): boolean {
+    return typeof window !== 'undefined' && !(window as any).__TAURI__;
+}
+
 function getSavedWorkspacePath(): string | null {
     if (typeof window === 'undefined') return null;
 
@@ -59,6 +63,13 @@ export function useWorkspace() {
                 _status = 'idle';
                 _error = null;
 
+                // Webapp mode: skip folder picker, connect directly to server DB
+                if (isWebApp()) {
+                    await open_workspace_web();
+                    return;
+                }
+
+                // Desktop mode: check for saved workspace path
                 const saved = getSavedWorkspacePath();
                 if (!saved) {
                     _status = 'no_workspace';
@@ -84,7 +95,32 @@ export function useWorkspace() {
         return initInFlight;
     }
 
-    // Called when user picks a folder via OS dialog
+    // Webapp: connect directly to server-side DB (no folder picker)
+    async function open_workspace_web() {
+        try {
+            _status = 'loading';
+            _error = null;
+
+            const db = await getDb();
+            await runMigrations(db);
+
+            // Initialize workspace meta if not exists
+            const meta = await WorkspaceRepo.getWorkspaceMeta(db);
+            if (!meta) {
+                await WorkspaceRepo.initWorkspace(db, 'Web Workspace');
+            }
+
+            _meta = await WorkspaceRepo.getWorkspaceMeta(db);
+            _path = 'web'; // Sentinel value indicating webapp mode
+
+            _status = 'ready';
+        } catch (e) {
+            _error = String(e);
+            _status = 'error';
+        }
+    }
+
+    // Called when user picks a folder via OS dialog (desktop only)
     async function pick() {
         try {
             const { open } = await import('@tauri-apps/plugin-dialog');

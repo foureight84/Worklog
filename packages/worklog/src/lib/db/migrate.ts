@@ -1,7 +1,7 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from './types';
 import { SCHEMA_VERSION } from './schema';
 
-async function migrate_v2(db: Database): Promise<void> {
+async function migrate_v2(db: WorklogDB): Promise<void> {
     await db.execute(`
         CREATE TABLE IF NOT EXISTS app_settings (
             id                INTEGER PRIMARY KEY CHECK (id = 1),
@@ -14,8 +14,8 @@ async function migrate_v2(db: Database): Promise<void> {
     `);
 }
 
-async function migrate_v3(db: Database): Promise<void> {
-    const columns = await db.select<Array<{ name: string }>>(`PRAGMA table_info(tickets)`);
+async function migrate_v3(db: WorklogDB): Promise<void> {
+    const columns = await db.select<{ name: string }>(`PRAGMA table_info(tickets)`);
     const hasPriority = columns.some((column) => column.name === 'priority');
 
     if (!hasPriority) {
@@ -31,8 +31,8 @@ async function migrate_v3(db: Database): Promise<void> {
     );
 }
 
-async function migrate_v4(db: Database): Promise<void> {
-    const columns = await db.select<Array<{ name: string }>>(
+async function migrate_v4(db: WorklogDB): Promise<void> {
+    const columns = await db.select<{ name: string }>(
         `PRAGMA table_info(tickets)`
     );
 
@@ -148,7 +148,7 @@ async function migrate_v4(db: Database): Promise<void> {
     }
 }
 
-async function migrate_v5(db: Database): Promise<void> {
+async function migrate_v5(db: WorklogDB): Promise<void> {
     // Expand ticket_type CHECK constraint to include: improvement, epic, spike
     // Uses the same table-recreation approach as v4 for SQLite CHECK constraint changes.
     await db.execute(`PRAGMA foreign_keys = OFF`);
@@ -211,22 +211,22 @@ async function migrate_v5(db: Database): Promise<void> {
     }
 }
 
-async function migrate_v6(db: Database): Promise<void> {
+async function migrate_v6(db: WorklogDB): Promise<void> {
     // Add position column for ticket sorting
     await db.execute(`ALTER TABLE tickets ADD COLUMN position REAL NOT NULL DEFAULT 0`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_tickets_position ON tickets(position)`);
 }
 
-async function migrate_v7(db: Database): Promise<void> {
+async function migrate_v7(db: WorklogDB): Promise<void> {
     // Add start_date column for Gantt start date support
-    const columns = await db.select<Array<{ name: string }>>(`PRAGMA table_info(tickets)`);
+    const columns = await db.select<{ name: string }>(`PRAGMA table_info(tickets)`);
     const hasStartDate = columns.some((column) => column.name === 'start_date');
     if (!hasStartDate) {
         await db.execute(`ALTER TABLE tickets ADD COLUMN start_date TEXT`);
     }
 }
 
-async function migrate_v8(db: Database): Promise<void> {
+async function migrate_v8(db: WorklogDB): Promise<void> {
     // Expand ticket_type CHECK constraint to include: story, task, subtask, incident, design, documentation
     await db.execute(`PRAGMA foreign_keys = OFF`);
     await db.execute(`BEGIN TRANSACTION`);
@@ -291,7 +291,7 @@ async function migrate_v8(db: Database): Promise<void> {
     }
 }
 
-async function migrate_v9(db: Database): Promise<void> {
+async function migrate_v9(db: WorklogDB): Promise<void> {
     // Add sync_config table for GitHub sync settings
     await db.execute(`
         CREATE TABLE IF NOT EXISTS sync_config (
@@ -314,7 +314,7 @@ async function migrate_v9(db: Database): Promise<void> {
  * Add git_name and git_email columns to sync_config table for users who
  * already migrated to v9 before those fields were added.
  */
-async function migrate_v10(db: Database) {
+async function migrate_v10(db: WorklogDB) {
     try {
         await db.execute(`ALTER TABLE sync_config ADD COLUMN git_name TEXT NOT NULL DEFAULT ''`);
     } catch {
@@ -332,7 +332,7 @@ async function migrate_v10(db: Database) {
  * Migration v11:
  * Add auto_sync_interval to sync_config.
  */
-async function migrate_v11(db: Database) {
+async function migrate_v11(db: WorklogDB) {
     try {
         await db.execute(`ALTER TABLE sync_config ADD COLUMN auto_sync_interval INTEGER NOT NULL DEFAULT 15`);
     } catch (e) {
@@ -344,7 +344,7 @@ async function migrate_v11(db: Database) {
  * Migration v12:
  * Create ticket_types table and recreate tickets table without ticket_type CHECK constraint.
  */
-async function migrate_v12(db: Database) {
+async function migrate_v12(db: WorklogDB) {
     // 1. Create ticket_types table
     await db.execute(`
         CREATE TABLE IF NOT EXISTS ticket_types (
@@ -421,7 +421,7 @@ async function migrate_v12(db: Database) {
  * Migration v13:
  * Add archived_at column to boards for soft-delete / archiving support.
  */
-async function migrate_v13(db: Database) {
+async function migrate_v13(db: WorklogDB) {
     try {
         await db.execute(`ALTER TABLE boards ADD COLUMN archived_at TEXT`);
     } catch {
@@ -429,8 +429,27 @@ async function migrate_v13(db: Database) {
     }
 }
 
-export async function runMigrations(db: Database): Promise<void> {
-    const rows = await db.select<{ schema_version: number }[]>(
+/**
+ * Migration v14:
+ * Replace sync_config table with new libsql sync schema.
+ */
+async function migrate_v14(db: WorklogDB) {
+    await db.execute(`DROP TABLE IF EXISTS sync_config`);
+    await db.execute(`
+        CREATE TABLE sync_config (
+            id              INTEGER PRIMARY KEY CHECK (id = 1),
+            primary_url     TEXT NOT NULL DEFAULT '',
+            auth_token      TEXT NOT NULL DEFAULT '',
+            auto_sync       INTEGER NOT NULL DEFAULT 0,
+            last_synced_at  TEXT,
+            updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        )
+    `);
+    await db.execute(`INSERT INTO sync_config (id) VALUES (1)`);
+}
+
+export async function runMigrations(db: WorklogDB): Promise<void> {
+    const rows = await db.select<{ schema_version: number }>(
         `SELECT schema_version FROM workspace_meta WHERE id = 1`
     );
 
@@ -484,6 +503,10 @@ export async function runMigrations(db: Database): Promise<void> {
 
     if (current < 13) {
         await migrate_v13(db);
+    }
+
+    if (current < 14) {
+        await migrate_v14(db);
     }
 
     await db.execute(

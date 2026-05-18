@@ -20,7 +20,7 @@
     } from "carbon-components-svelte";
 
     import { Theme } from "carbon-components-svelte";
-    import { syncState } from "$lib/sync/sync-scheduler.svelte";
+    import { useSyncConfig } from "$lib/sync/sync-config.svelte";
 
     type WindowControlAction = "minimize" | "toggle-maximize" | "close";
 
@@ -125,14 +125,13 @@
     // @ts-ignore
     const version = __APP_VERSION__;
 
+    const syncConfig = useSyncConfig();
+
     const formattedSyncTime = $derived.by(() => {
-        if (syncState.isSyncing) return "Syncing...";
-        if (!syncState.nextSyncAt) return "";
-        const totalSeconds = Math.ceil(syncState.timeRemainingMs / 1000);
-        if (totalSeconds <= 0) return "Syncing soon...";
-        const m = Math.floor(totalSeconds / 60);
-        const s = totalSeconds % 60;
-        return `Next sync in ${m}m ${s}s`;
+        if (syncConfig.status === 'syncing') return "Syncing...";
+        if (syncConfig.status === 'connected') return "Connected";
+        if (syncConfig.status === 'disconnected') return "Disconnected";
+        return "";
     });
 </script>
 

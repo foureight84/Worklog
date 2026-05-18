@@ -11,7 +11,7 @@
     import { useCommandPalette } from "$lib/hooks/command-palette.svelte";
     import { page } from "$app/state";
     import type { CommandAction } from "$lib/components/app/types";
-    import { initSyncScheduler, destroySyncScheduler } from "$lib/sync/sync-scheduler.svelte";
+    import { startSyncScheduler, stopSyncScheduler } from "$lib/sync/sync-scheduler.svelte";
     import { onDestroy } from "svelte";
 
     let { children } = $props();
@@ -70,7 +70,10 @@
             getDb(workspacePath).then((db) => {
                 import("$lib/sync/sync-config.svelte").then(({ useSyncConfig }) => {
                     useSyncConfig().load(db).then(() => {
-                        initSyncScheduler();
+                        import("$lib/sync/sync-engine").then(({ SyncEngine }) => {
+                            const engine = new SyncEngine(null);
+                            startSyncScheduler(engine);
+                        });
                     });
                 });
             });
@@ -109,7 +112,7 @@
     const isSettingsRoute = $derived(page.route.id === "/workspace/settings");
 
     onDestroy(() => {
-        destroySyncScheduler();
+        stopSyncScheduler();
     });
 </script>
 

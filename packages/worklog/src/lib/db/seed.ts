@@ -1,7 +1,7 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from './types';
 import { BoardRepo, TicketRepo, WorkspaceRepo } from '$lib/db';
 
-export async function seedDatabase(db: Database): Promise<void> {
+export async function seedDatabase(db: WorklogDB): Promise<void> {
     console.log('[seed] Starting...');
 
     // ── Workspace ────────────────────────────────────────
@@ -142,7 +142,7 @@ export async function seedDatabase(db: Database): Promise<void> {
     console.log('[seed] Done');
 }
 
-export async function seedLazyLoadingTest(db: Database): Promise<void> {
+export async function seedLazyLoadingTest(db: WorklogDB): Promise<void> {
     const board = await BoardRepo.createBoard(db, {
         name: 'Performance Test Board',
         description: 'Large board with 200 tickets to test lazy loading and infinite scroll.'

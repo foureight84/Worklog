@@ -1,4 +1,4 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from '../types';
 import { save } from '@tauri-apps/plugin-dialog';
 import { documentDir } from '@tauri-apps/api/path';
 import { writeTextFile, mkdir, exists } from '@tauri-apps/plugin-fs';
@@ -12,7 +12,7 @@ import { snapshotToSingleCsv, snapshotToFolderCsvFiles } from './serialize-csv';
  *
  * @returns true if export was successful, false if user cancelled
  */
-export async function exportToFile(db: Database, options: ExportOptions): Promise<boolean> {
+export async function exportToFile(db: WorklogDB, options: ExportOptions): Promise<boolean> {
     try {
         const snapshot = await extractSnapshot(db);
         const documentsPath = await documentDir();

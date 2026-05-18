@@ -77,7 +77,7 @@ export interface CommandAction {
 
 
 
-export type SyncMode = "local" | "git";
+export type SyncMode = "local" | "git" | "libsql";
 
 export interface WorkspaceMeta {
     name: string;

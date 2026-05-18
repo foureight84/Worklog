@@ -1,37 +1,60 @@
-import Database from '@tauri-apps/plugin-sql';
-import { mkdir, exists } from '@tauri-apps/plugin-fs';
-import { CREATE_TABLES } from './schema';
+import type { WorklogDB } from './types';
+import { createWebDB } from './connection-web';
+import { createDesktopDB } from './connection-desktop';
 
-let _db: Database | null = null;
+let _db: WorklogDB | null = null;
 let _dbWorkspacePath: string | null = null;
 
-export async function getDb(workspacePath: string): Promise<Database> {
+function isDesktop(): boolean {
+    return typeof window !== 'undefined' && !!(window as any).__TAURI__;
+}
+
+export async function getDb(workspacePath?: string): Promise<WorklogDB> {
+    // Reuse existing connection if same workspace
     if (_db && _dbWorkspacePath === workspacePath) return _db;
 
+    // Close old connection if switching workspace
     if (_db && _dbWorkspacePath !== workspacePath) {
         await _db.close();
         _db = null;
         _dbWorkspacePath = null;
     }
 
-    // ── Ensure .worklog/ directory exists ──────────────
-    const dirPath = `${workspacePath}/.worklog`;
-    const dirExists = await exists(dirPath);
-    if (!dirExists) {
-        await mkdir(dirPath, { recursive: true });
+    if (isDesktop() && workspacePath) {
+        // Desktop: ensure .worklog/ directory exists
+        const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
+        const dirPath = `${workspacePath}/.worklog`;
+        const dirExists = await exists(dirPath);
+        if (!dirExists) {
+            await mkdir(dirPath, { recursive: true });
+        }
+
+        // Desktop: use embedded replica
+        const { useSyncConfig } = await import('../sync/sync-config.svelte');
+        const syncConfig = useSyncConfig();
+        _db = createDesktopDB({
+            workspacePath,
+            syncUrl: syncConfig.config.primary_url,
+            authToken: syncConfig.config.auth_token || undefined,
+        });
+    } else {
+        // Webapp: direct connection to primary
+        _db = createWebDB();
     }
 
-    // ── Open or create the SQLite database ─────────────
-    _db = await Database.load(`sqlite:${workspacePath}/.worklog/worklog.db`);
-    _dbWorkspacePath = workspacePath;
+    _dbWorkspacePath = workspacePath ?? null;
+
+    // ── Run schema creation and migrations ──────────────
+    const { CREATE_TABLES } = await import('./schema');
     await _db.execute(CREATE_TABLES);
 
-    // ── Handle Migrations ──────────────────────────────
     const { runMigrations } = await import('./migrate');
     await runMigrations(_db);
 
     // ── Seed Default Ticket Types if empty ──────────────
-    const typesCount = await _db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM ticket_types");
+    const typesCount = await _db.select<{ count: number }>(
+        "SELECT COUNT(*) as count FROM ticket_types"
+    );
     if (typesCount && typesCount[0] && typesCount[0].count === 0) {
         const now = new Date().toISOString();
         const defaultTypes = [

@@ -1,0 +1,25 @@
+services:
+  # libsql server (sqld) - persistent SQLite-compatible database
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:v0.4.7
+    ports:
+      - "8080:8080"
+    volumes:
+      - libsql_data:/data
+    restart: unless-stopped
+
+  # Worklog webapp
+  webapp:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - LIBSQL_URL=http://sqld:8080
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-random-secret-at-least-16-chars}
+      - PORT=3000
+    depends_on:
+      - sqld
+    restart: unless-stopped
+
+volumes:
+  libsql_data:

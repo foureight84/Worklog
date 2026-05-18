@@ -1,4 +1,4 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from '../types';
 import type { WorklogSnapshot, ImportResult, ImportStrategy } from './types';
 
 /**
@@ -9,7 +9,7 @@ import type { WorklogSnapshot, ImportResult, ImportStrategy } from './types';
  * @param strategy 'merge' = upsert by ID, 'replace' = wipe and insert
  */
 export async function importSnapshot(
-    db: Database,
+    db: WorklogDB,
     snapshot: WorklogSnapshot,
     strategy: ImportStrategy = 'merge',
 ): Promise<ImportResult> {

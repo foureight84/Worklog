@@ -1,45 +1,21 @@
-// ── Sync Types ─────────────────────────────────────────────────────────────
-
 export interface SyncConfig {
-    /** GitHub repository HTTPS URL (e.g. https://github.com/user/repo.git) */
-    remote_url: string;
-    /** GitHub Personal Access Token with repo scope */
-    access_token: string;
-    /** Branch to sync against (default: 'main') */
-    branch: string;
-    /** Git committer name */
-    git_name: string;
-    /** Git committer email */
-    git_email: string;
-    /** Whether to automatically push after every save */
+    primary_url: string;
+    auth_token: string;
     auto_sync: boolean;
-    /** Interval in minutes for auto sync */
-    auto_sync_interval: number;
-    /** ISO timestamp of last successful sync, or null */
     last_synced_at: string | null;
 }
 
-export type SyncStatus =
-    | 'idle'
-    | 'pushing'
-    | 'pulling'
-    | 'error'
-    | 'conflict'
-    | 'not_configured';
+export type SyncStatus = 'connected' | 'disconnected' | 'syncing';
 
 export interface SyncResult {
-    status: 'success' | 'conflict' | 'error';
+    status: 'success' | 'error';
     message: string;
     timestamp: string;
 }
 
 export const DEFAULT_SYNC_CONFIG: SyncConfig = {
-    remote_url: '',
-    access_token: '',
-    branch: 'main',
-    git_name: '',
-    git_email: '',
+    primary_url: '',
+    auth_token: '',
     auto_sync: false,
-    auto_sync_interval: 15,
     last_synced_at: null,
 };

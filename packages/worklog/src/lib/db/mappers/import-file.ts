@@ -1,4 +1,4 @@
-import type Database from '@tauri-apps/plugin-sql';
+import type { WorklogDB } from '../types';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile, readDir } from '@tauri-apps/plugin-fs';
 import type { ImportResult, ImportStrategy } from './types';
@@ -18,7 +18,7 @@ import type { BoardSnapshot } from './types';
  * @returns ImportResult on success, null if user cancelled
  */
 export async function importFromFile(
-    db: Database,
+    db: WorklogDB,
     strategy: ImportStrategy = 'merge',
 ): Promise<ImportResult | null> {
     try {
@@ -71,6 +71,7 @@ export async function importFromFile(
                             description: '',
                             created_at: new Date().toISOString(),
                             updated_at: new Date().toISOString(),
+                            archived_at: null,
                         },
                         tickets: [],
                     });
@@ -100,7 +101,7 @@ export async function importFromFile(
  * Import from a folder path (used by sync engine and manual folder import).
  */
 export async function importFromFolder(
-    db: Database,
+    db: WorklogDB,
     folderPath: string,
     strategy: ImportStrategy = 'merge',
 ): Promise<ImportResult> {
@@ -147,7 +148,7 @@ export async function importFromFolder(
  * Handles the CSV folder mode where board metadata is in .json and tickets in .csv
  */
 async function importCsvFolderSnapshot(
-    db: Database,
+    db: WorklogDB,
     files: Map<string, string>,
     strategy: ImportStrategy,
 ): Promise<ImportResult> {
