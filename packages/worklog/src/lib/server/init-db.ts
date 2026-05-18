@@ -39,7 +39,7 @@ export async function initServerDB(): Promise<WorklogDB> {
 
         // Run schema creation and migrations on server startup
         const { CREATE_TABLES } = await import('$lib/db/schema');
-        await db.execute(CREATE_TABLES);
+        await db.executeBatch(CREATE_TABLES);
 
         const { runMigrations } = await import('$lib/db/migrate');
         await runMigrations(db);

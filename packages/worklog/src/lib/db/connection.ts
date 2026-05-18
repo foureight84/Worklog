@@ -51,7 +51,7 @@ export async function getDb(workspacePath?: string): Promise<WorklogDB> {
 
     // ── Run schema creation and migrations ──────────────
     const { CREATE_TABLES } = await import('./schema');
-    await _db.execute(CREATE_TABLES);
+    await _db.executeBatch(CREATE_TABLES);
 
     const { runMigrations } = await import('./migrate');
     await runMigrations(_db);

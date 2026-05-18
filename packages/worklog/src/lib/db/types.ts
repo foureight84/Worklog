@@ -1,6 +1,10 @@
 export interface WorklogDB {
     select<T = Record<string, unknown>>(sql: string, args?: unknown[]): Promise<T[]>;
     execute(sql: string, args?: unknown[]): Promise<number>;
+    /** Split multi-statement SQL (e.g. CREATE_TABLES DDL batch) into individual
+     * statements and execute each sequentially. Use for independent DDL batches
+     * only — NOT for BEGIN/COMMIT/ROLLBACK transaction sequences. */
+    executeBatch(sql: string): Promise<number>;
     /** Sync with primary server (no-op for direct connections, delegates to libsql Client.sync() for embedded replicas) */
     sync(): Promise<void>;
     close(): Promise<void>;

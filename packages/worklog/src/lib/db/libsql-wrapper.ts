@@ -14,8 +14,37 @@ export function wrapLibsqlClient(client: Client): WorklogDB {
             });
         },
         async execute(sql: string, args?: unknown[]) {
+            // sqld Hrana-over-HTTP auto-commits each statement.
+            // Explicit BEGIN/COMMIT/ROLLBACK are no-ops — the transaction
+            // is already closed by the time the next HTTP request arrives.
+            const trimmed = sql.trim().toUpperCase();
+            if (trimmed === 'BEGIN TRANSACTION' ||
+                trimmed === 'BEGIN' ||
+                trimmed === 'COMMIT' ||
+                trimmed === 'ROLLBACK') {
+                return 0;
+            }
             const result = await client.execute({ sql, args: args as any });
             return result.rowsAffected;
+        },
+        async executeBatch(sql: string): Promise<number> {
+            // Split multi-statement SQL for sqld compatibility.
+            // sqld rejects batched statements, so we split on ';'
+            // and execute each individually.
+            // NOTE: this breaks transaction boundaries — only use for
+            // independent DDL batches like CREATE_TABLES, never for
+            // BEGIN/COMMIT/ROLLBACK sequences.
+            const statements = sql
+                .split(';')
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+
+            let totalAffected = 0;
+            for (const stmt of statements) {
+                const result = await client.execute(stmt);
+                totalAffected += result.rowsAffected;
+            }
+            return totalAffected;
         },
         async sync() {
             // libsql Client.sync() is not in the public types but exists

@@ -1,14 +1,14 @@
 services:
   # libsql server (sqld) - persistent SQLite-compatible database
   sqld:
-    image: ghcr.io/tursodatabase/libsql-server:v0.4.7
+    image: ghcr.io/tursodatabase/libsql-server:v0.24.32
     ports:
       - "8080:8080"
     volumes:
       - libsql_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080; echo -e 'GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3; grep -q '200 OK' <&3"]
       interval: 10s
       timeout: 5s
       retries: 5
