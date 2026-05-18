@@ -190,9 +190,14 @@ All issues identified during code review were fixed:
 ### Issues Acknowledged (not fixed — architectural / tech debt)
 | # | Severity | File | Issue | Rationale |
 |---|----------|------|-------|-----------|
-| 8 | Medium | `init-db.ts` vs `connection.ts` | Two independent libsql Clients created for webapp | Double connection is harmless; requires deeper architectural change |
-| 9 | Medium | `connection.ts`, `init-db.ts`, `seed.ts` | Default ticket types duplicated in 3 places | Extract to shared constant when defaults next change |
-| 10 | Note | `token/+server.ts` | No authentication on token endpoint | Acceptable for dev/local; production needs reverse-proxy auth |
+| 8 | ~~Medium~~ Fixed | `init-db.ts` vs `connection.ts` | Two independent libsql Clients created for webapp | Documented architecture: browser-side vs server-side paths, cross-referenced in both files |
+| 9 | ~~Medium~~ Fixed | `connection.ts`, `init-db.ts` | Default ticket types duplicated in 3 places → actually 2 | Extracted to `seedDefaultTicketTypes()` in types.ts, both callers use shared function |
+| 10 | ~~Note~~ Fixed | `token/+server.ts` | No authentication on token endpoint | Added optional `ADMIN_API_KEY` Bearer token check; unauth'd when unset (dev mode) |
+
+### Tech debt resolution (May 17, 2026) — all 3 items resolved
+- **#8**: Added detailed architectural comments in both `connection.ts` and `init-db.ts` explaining the dual-path design with a TODO for Phase 6
+- **#9**: Extracted `DEFAULT_TICKET_TYPES` array + `seedDefaultTicketTypes()` helper into `types.ts`, removed duplicate inline arrays from `connection.ts` and `init-db.ts`
+- **#10**: Added `ADMIN_API_KEY` env var check to token endpoint; if set, requires `Authorization: Bearer <key>`; if unset, works open (dev mode)
 
 ### Dead code noted
 - `sync-engine.ts`: SyncEngine class is no longer imported by any source file. Kept for now as documented abstraction layer (34 lines, no runtime cost).

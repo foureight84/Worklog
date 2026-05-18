@@ -1,4 +1,5 @@
 import type { WorklogDB } from '$lib/db/types';
+import { seedDefaultTicketTypes } from '$lib/db/types';
 import { createClient, wrapLibsqlClient } from '$lib/db/libsql-wrapper';
 import { getServerEnv } from './env';
 
@@ -9,6 +10,22 @@ let _initPromise: Promise<WorklogDB> | null = null;
  * Initialize the server-side database connection.
  * Uses a singleton pattern — the same connection is reused across requests.
  * Thread-safe via in-flight promise deduplication.
+ *
+ * ── Architecture note ──
+ * The webapp has TWO DB initialization paths:
+ *   1. THIS function (initServerDB) — server-only, called from hooks.server.ts.
+ *      Used by server load functions, API routes, form actions.
+ *   2. connection.ts → getDb() — shared client/server, called from
+ *      workspace.svelte.ts (browser-side hydration). Creates a separate libsql
+ *      Client for direct browser→sqld communication.
+ *
+ * These are intentional: the browser-side connection handles Svelte 5 runes
+ * ($state reactivity) without server round-trips, while the server connection
+ * handles SSR, auth, and API endpoints. Both talk to the same sqld instance.
+ *
+ * TODO: If sqld is not exposed to the browser (e.g. Docker internal network),
+ * the browser-side connection in getDb() will fail. In that setup, the browser
+ * should use SvelteKit server API routes instead. See Phase 6 (Testing).
  */
 export async function initServerDB(): Promise<WorklogDB> {
     if (_db) return _db;
@@ -28,25 +45,7 @@ export async function initServerDB(): Promise<WorklogDB> {
         await runMigrations(db);
 
         // Seed default ticket types if empty
-        const typesCount = await db.select<{ count: number }>(
-            "SELECT COUNT(*) as count FROM ticket_types"
-        );
-        if (typesCount && typesCount[0] && typesCount[0].count === 0) {
-            const now = new Date().toISOString();
-            const defaultTypes = [
-                { id: 'bug', name: 'Bug', color: '#fa4d56', icon: 'bug', is_default: 0 },
-                { id: 'feature', name: 'Feature', color: '#198038', icon: 'star', is_default: 1 },
-                { id: 'chore', name: 'Chore', color: '#525252', icon: 'tools', is_default: 0 },
-                { id: 'task', name: 'Task', color: '#00539a', icon: 'checkmark', is_default: 0 },
-                { id: 'improvement', name: 'Improvement', color: '#8a3ffc', icon: 'upgrade', is_default: 0 },
-            ];
-            for (const t of defaultTypes) {
-                await db.execute(
-                    "INSERT INTO ticket_types (id, name, color, icon, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    [t.id, t.name, t.color, t.icon, t.is_default, now, now]
-                );
-            }
-        }
+        await seedDefaultTicketTypes(db);
 
         _db = db;
         return _db;
