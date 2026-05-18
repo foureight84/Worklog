@@ -596,85 +596,69 @@ The `onMount` → `workspace.init()` call is already there. No change needed if 
 
 ### Step 3.8 — Create packages/worklog/Dockerfile
 
+**Note:** Updated after Docker testing. The original plan used `bun.lockb` (binary format) but this project uses `bun.lock` (text format). curl is needed in the runtime stage for webapp health checks.
+
 ```dockerfile
-FROM oven/bun:1 AS build
+# Stage 1: Build
+FROM oven/bun:1-alpine AS builder
 WORKDIR /app
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY . .
+RUN bunx svelte-kit sync
 RUN bun run build
 
-FROM oven/bun:1-slim
+# Stage 2: Production runtime
+FROM oven/bun:1-alpine
 WORKDIR /app
-COPY --from=build /app/build ./build
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./
-ENV PORT=3000
-ENV LIBSQL_URL=http://sqld:8080
+RUN apk add --no-cache curl
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/package.json /app/bun.lock ./
+RUN bun install --production --frozen-lockfile
 EXPOSE 3000
-CMD ["bun", "run", "build/index.js"]
+ENV NODE_ENV=production PORT=3000
+CMD ["bun", "build/index.js"]
 ```
 
 ### Step 3.9 — Create packages/worklog/docker-compose.yml
 
+**Note:** Updated with working config after Docker testing. Key differences from original plan:
+- `libsql-server` tag: `v0.24.32` (not `latest` — tested and working)
+- sqld health check: uses bash `/dev/tcp` (curl not in libsql-server image)
+- jwt-init removed (JWT auth deferred to later phase)
+- `JWT_SECRET` env var used instead of file-based JWT key (simpler)
+
 ```yaml
-version: '3.8'
 services:
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:v0.24.32
+    ports: ["8080:8080"]
+    volumes: {libsql_data: /data}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080; echo -e 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   webapp:
     build: .
-    ports:
-      - "3000:3000"
+    ports: ["3000:3000"]
     environment:
-      - LIBSQL_URL=http://sqld:8080
-      - JWT_KEY_PATH=/run/secrets/jwt.key
-    secrets:
-      - jwt_key
+      LIBSQL_URL: http://sqld:8080
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-random-secret-at-least-16-chars}
+      PORT: "3000"
     depends_on:
       sqld:
         condition: service_healthy
     restart: unless-stopped
-
-  sqld:
-    image: ghcr.io/tursodatabase/libsql-server:latest
-    ports:
-      - "8080:8080"
-    volumes:
-      - sqld_data:/var/lib/sqld
-      - jwt_key:/etc/sqld/auth:ro
-    command: >
-      sqld
-      --http-listen-addr 0.0.0.0:8080
-      --auth-jwt-key file:/etc/sqld/auth/jwt.key
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    restart: unless-stopped
-
-  jwt-init:
-    image: alpine:latest
-    volumes:
-      - jwt_key:/keys
-    command: >
-      sh -c '
-        if [ ! -f /keys/jwt.key ]; then
-          echo "Generating new JWT signing key..."
-          head -c 32 /dev/urandom | base64 > /keys/jwt.key
-          chmod 600 /keys/jwt.key
-          echo "Done."
-        else
-          echo "JWT key already exists."
-        fi
-      '
-
-secrets:
-  jwt_key:
-    file: ./secrets/jwt.key
-
-volumes:
-  sqld_data:
-  jwt_key:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+volumes: {libsql_data:}
 ```
 
 ### Step 3.10 — Verify webapp builds and runs
@@ -692,7 +676,132 @@ curl http://localhost:3000/api/sync/token  # should return JWT
 
 ---
 
-## Phase 4: Desktop Client Adaptation
+## Phase 3.5: Webapp UI Cleanup — Hide Desktop-Only Features
+
+### Step 3.5.1 — Create src/lib/environment.ts
+
+```ts
+export function isDesktop(): boolean {
+    return typeof window !== 'undefined' && !!(window as any).__TAURI__;
+}
+export function isWebApp(): boolean {
+    return !isDesktop();
+}
+```
+
+### Step 3.5.2 — Hide window controls in app-toolbar.svelte
+
+```svelte
+<script>
+    import { isDesktop } from '$lib/environment';
+    // ... existing imports ...
+</script>
+
+<!-- Window control buttons: only in desktop mode -->
+{#if isDesktop()}
+    <Button onclick={() => runWindowControl("minimize")} kind="ghost">
+        <Subtract />
+    </Button>
+    <Button onclick={() => runWindowControl("toggle-maximize")} kind="ghost">
+        {#if isMaximized}<Minimize />{:else}<Maximize />{/if}
+    </Button>
+    <Button onclick={() => runWindowControl("close")} kind="danger-ghost">
+        <Close />
+    </Button>
+{/if}
+```
+
+Also wrap the Tauri drag region and skip the window resize $effect when !isDesktop().
+
+### Step 3.5.3 — Fix toolbar status for webapp
+
+In `app-toolbar.svelte`, modify `formattedSyncTime` to show "Server" in webapp mode:
+
+```ts
+const formattedSyncTime = $derived.by(() => {
+    if (!isDesktop()) return "";  // webapp: no sync status needed
+    if (syncConfig.status === 'syncing') return "Syncing...";
+    if (syncConfig.status === 'connected') return "Connected";
+    if (syncConfig.status === 'disconnected') return "Disconnected";
+    return "";
+});
+```
+
+### Step 3.5.4 — Hide sync bottom bar in webapp
+
+In `workspace-sidebar.svelte`:
+
+```svelte
+<script>
+    import { isDesktop } from '$lib/environment';
+</script>
+
+{#if isDesktop()}
+    <SyncBottomBar />
+{/if}
+```
+
+### Step 3.5.5 — Fix settings Synchronization page
+
+In `settings/+page.svelte`, import `isDesktop` and branch the sync section:
+
+- **Webapp mode:** Show server info (libsql URL), hide "Server URL"/"Auth Token"/"Auto-sync" fields. Keep "Desktop Token" generation.
+- **Desktop mode:** Show "Server URL", "Auth Token", "Auto-sync" fields. Hide "Desktop Token" generation.
+
+### Step 3.5.6 — Hide updater section in webapp
+
+In `settings/+page.svelte`, wrap the updater section (check for updates, release notes) in `{#if isDesktop()}`.
+
+### Step 3.5.7 — Disable right-click prevention in webapp
+
+In `routes/+layout.svelte`:
+
+```ts
+import { isDesktop } from '$lib/environment';
+
+$effect(() => {
+    if (!isDesktop()) return;
+    document.addEventListener("contextmenu", handleContextmenu);
+    return () => document.removeEventListener("contextmenu", handleContextmenu);
+});
+```
+
+### Step 3.5.8 — Disable app zoom in webapp
+
+In `routes/+layout.svelte`, only apply zoom CSS when desktop:
+
+```css
+:global(body) {
+    overflow: hidden;
+}
+/* Only in desktop mode */
+:global(body.desktop) {
+    transform: scale(var(--app-zoom, 1));
+    transform-origin: top left;
+    width: calc(100% / var(--app-zoom, 1)) !important;
+    height: calc(100% / var(--app-zoom, 1)) !important;
+}
+```
+
+### Step 3.5.9 — Guard openWorkspaceFolder in webapp
+
+In `routes/+layout.svelte`, conditionally include the `openWorkspace` command action only when `isDesktop()`.
+
+### Step 3.5.10 — Consolidate inline detection checks
+
+Replace inline `!!(window as any).__TAURI__` checks with imports from `$lib/environment.ts`:
+- `src/lib/db/connection.ts` — replace inline `isDesktop()` with import
+- `src/lib/hooks/workspace.svelte.ts` — replace inline `isWebApp()` with import
+
+### Step 3.5.11 — Verify
+
+```bash
+cd packages/worklog
+bun run check
+```
+Expected: 0 errors, 0 warnings.
+
+---
 
 ### Step 4.1 — Update src-tauri/Cargo.toml
 
@@ -818,19 +927,20 @@ curl http://localhost:3000/api/sync/token
 
 ## File Change Summary
 
-### New files (12)
+### New files (13)
 1. `src/lib/db/types.ts` — WorklogDB interface
 2. `src/lib/db/libsql-wrapper.ts` — Shared libsql → WorklogDB wrapper
 3. `src/lib/db/connection-web.ts` — Webapp connection factory
 4. `src/lib/db/connection-desktop.ts` — Desktop connection factory
-5. `src/lib/server/env.ts` — Server environment config
-6. `src/lib/server/init-db.ts` — Server DB initialization
-7. `src/lib/server/jwt.ts` — JWT signing for desktop tokens
-8. `src/routes/api/sync/token/+server.ts` — Token generation API
-9. `src/hooks.server.ts` — SvelteKit server hooks
-10. `Dockerfile` — Multi-stage Docker build
-11. `docker-compose.yml` — Docker compose with JWT auth
-12. `scripts/generate-jwt-key.sh` — Manual key gen helper (optional)
+5. `src/lib/environment.ts` — Shared isDesktop()/isWebApp() detection (Phase 3.5)
+6. `src/lib/server/env.ts` — Server environment config
+7. `src/lib/server/init-db.ts` — Server DB initialization
+8. `src/lib/server/jwt.ts` — JWT signing for desktop tokens
+9. `src/routes/api/sync/token/+server.ts` — Token generation API
+10. `src/hooks.server.ts` — SvelteKit server hooks
+11. `Dockerfile` — Multi-stage Docker build
+12. `docker-compose.yml` — Docker compose (sqld + webapp)
+13. `.dockerignore` — Docker build exclusions
 
 ### Modified files (20)
 1. `package.json` — deps

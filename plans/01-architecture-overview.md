@@ -833,6 +833,143 @@ curl http://localhost:3000/api/sync/token  # returns {"token":"eyJ...", "clientI
 
 ---
 
+## Phase 3.5: Webapp UI Cleanup — Hide Desktop-Only Features
+
+**Context:** The current webapp shares a single codebase with the desktop app, which causes desktop-only UI to leak into the webapp. This phase conditionally hides desktop-specific features when running in browser mode (non-Tauri). The `isWebApp()` / `isDesktop()` guard already exists in `connection.ts` and `workspace.svelte.ts` — this phase applies it systematically across the UI layer.
+
+**Decision: Conditional rendering** — not separate directories. Desktop and webapp share 90%+ of code (components, repos, hooks). A single `isDesktop()` check at each divergence point is sufficient.
+
+**Detection helper** (consolidate into a shared location):
+
+```ts
+// src/lib/environment.ts (NEW)
+export function isDesktop(): boolean {
+    return typeof window !== 'undefined' && !!(window as any).__TAURI__;
+}
+export function isWebApp(): boolean {
+    return !isDesktop();
+}
+```
+
+### Task 3.5.1: Create shared environment detection module
+
+**Objective:** Single source of truth for desktop/webapp detection. Replace inline `isWebApp()` / `isDesktop()` checks scattered across the codebase.
+
+**Files:**
+- Create: `packages/worklog/src/lib/environment.ts`
+
+### Task 3.5.2: Hide window controls in webapp
+
+**Objective:** Minimize, maximize, and close buttons only work in Tauri. Hide them in the webapp.
+
+**Files:**
+- Modify: `packages/worklog/src/lib/components/app/layout/toolbar/app-toolbar.svelte`
+
+**Changes:**
+- Import `isDesktop` from `$lib/environment`
+- Wrap the three window control buttons (Subtract, Minimize/Maximize, Close) in `{#if isDesktop()}`
+- Wrap the Tauri drag region div (`data-tauri-drag-region`) in `{#if isDesktop()}`
+- Skip the `$effect` that subscribes to window resize events when `!isDesktop()`
+
+### Task 3.5.3: Fix toolbar status for webapp
+
+**Objective:** The toolbar shows "Disconnected" in webapp mode because sync is not configured. The webapp IS the server — show "Server" or nothing.
+
+**Files:**
+- Modify: `packages/worklog/src/lib/components/app/layout/toolbar/app-toolbar.svelte`
+
+**Changes:**
+- Import `isDesktop` from `$lib/environment`
+- Modify `formattedSyncTime` to return `"Server"` or empty when `!isDesktop()`, or hide the sync status div entirely
+
+### Task 3.5.4: Hide sync bottom bar in webapp
+
+**Objective:** The sync bottom bar shows desktop replica sync status. On the webapp (primary), there is no sync — hide it entirely.
+
+**Files:**
+- Modify: `packages/worklog/src/lib/components/app/layout/workspace/workspace-sidebar.svelte` (line 406, where `<SyncBottomBar />` is rendered)
+
+**Changes:**
+- Import `isDesktop` from `$lib/environment`
+- Wrap `<SyncBottomBar />` in `{#if isDesktop()}`
+
+### Task 3.5.5: Fix settings → Synchronization page for webapp
+
+**Objective:** The current sync settings form is desktop-oriented (asks for Server URL, Auth Token — these are what a desktop client fills in to connect to the server). In the webapp, show the admin view: server connection info + token generation for desktop clients.
+
+**Files:**
+- Modify: `packages/worklog/src/routes/workspace/settings/+page.svelte`
+
+**Changes:**
+- Import `isDesktop` from `$lib/environment`
+- In the "Synchronization" section:
+  - **Webapp mode:** Show a "Server" info block (libsql URL, JWT auth status). Keep the "Desktop Token" generation section. Hide "Server URL", "Auth Token", "Auto-sync" fields.
+  - **Desktop mode:** Keep existing form (Server URL, Auth Token, Auto-sync). Hide the "Desktop Token" generation section (tokens are generated on the server, not on the client).
+
+### Task 3.5.6: Hide updater section in webapp
+
+**Objective:** The updater uses `@tauri-apps/plugin-updater` which doesn't exist in browser.
+
+**Files:**
+- Modify: `packages/worklog/src/routes/workspace/settings/+page.svelte`
+
+**Changes:**
+- Wrap the updater section (check for updates button, release notes) in `{#if isDesktop()}`
+- Remove or conditionally import `checkForUpdate` from `$lib/updater`
+
+### Task 3.5.7: Disable right-click prevention in webapp
+
+**Objective:** Desktop Tauri apps prevent the native context menu. In a browser, users expect right-click to work.
+
+**Files:**
+- Modify: `packages/worklog/src/routes/+layout.svelte`
+
+**Changes:**
+- Import `isDesktop` from `$lib/environment`
+- Only add the `contextmenu` event listener when `isDesktop()`
+
+### Task 3.5.8: Disable app zoom in webapp
+
+**Objective:** The CSS transform zoom conflicts with native browser zoom (Ctrl+/-). Let the browser handle zoom natively.
+
+**Files:**
+- Modify: `packages/worklog/src/routes/+layout.svelte`
+
+**Changes:**
+- Import `isDesktop` from `$lib/environment`
+- Only apply `transform: scale(var(--app-zoom))` and the width/height calc when `isDesktop()`
+- Keep keyboard shortcuts but make them no-op in webapp (browser handles Ctrl+/- natively)
+- Keep `overflow: hidden` on body (the layout needs it regardless)
+
+### Task 3.5.9: Guard openWorkspaceFolder in webapp
+
+**Objective:** The "Open Workspace Folder" command palette action calls `workspace.pick()` which uses Tauri dialog. Should be hidden in webapp.
+
+**Files:**
+- Modify: `packages/worklog/src/routes/+layout.svelte`
+
+**Changes:**
+- Remove `openWorkspace` from command palette actions when `isWebApp()`, or make `workspace.pick()` a no-op in webapp mode.
+
+### Task 3.5.10: Consolidate inline detection checks
+
+**Objective:** Replace scattered `!!(window as any).__TAURI__` and inline `isWebApp()` checks with imports from `$lib/environment.ts`.
+
+**Files:**
+- Modify: `packages/worklog/src/lib/db/connection.ts` — replace inline `isDesktop()` with import
+- Modify: `packages/worklog/src/lib/hooks/workspace.svelte.ts` — replace inline `isWebApp()` with import
+
+### Task 3.5.11: Verify webapp UI compiles and runs clean
+
+```bash
+cd packages/worklog
+bun run check
+```
+
+Expected: 0 errors, 0 warnings. All desktop-only UI hidden in webapp mode.
+
+---
+
 ## Phase 4: Desktop Client Adaptation
 
 ### Task 4.1: Update Tauri Cargo.toml — swap SQL plugin for nothing (libsql is JS-side)

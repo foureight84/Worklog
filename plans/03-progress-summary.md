@@ -120,8 +120,11 @@
 2. ~~8 unused CSS selectors across settings page and sync-bottom-bar~~ — **FIXED** (commit 44a3fa8)
 3. `@tauri-apps/plugin-sql` still in package.json dependencies (Phase 4 will remove)
 
-## UPDATED STATE (after lint fix commit 44a3fa8)
+## UPDATED STATE (after Docker/sqld fixes + plan update)
 - `bun run check`: **0 errors, 0 warnings**
 - `bun run build`: succeeds
 - Server boots on port 3000 (verified)
+- Docker stack verified: `docker compose up -d` → both services healthy
+- Phase 3.5 plan added for webapp UI cleanup
+- Pushed to origin/webapp (3 more commits since last update)
 - See plans/04-progress-summary.md for the full updated summary

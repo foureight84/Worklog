@@ -1,7 +1,7 @@
 # Worklog Webapp Migration - Progress Summary
 
-> Updated: Sunday, May 17, 2026. Covers Phases 0-3 + code review fixes + lint cleanup.
-> Git branch: `webapp`, 3 commits since base.
+> Updated: Sunday, May 17, 2026. Covers Phases 0-3 + code review fixes + Docker/sqld fixes.
+> Git branch: `webapp`, 6 commits since base. Pushed to origin/webapp.
 
 ---
 
@@ -50,6 +50,19 @@
 - Created `.dockerignore`
 - Build verified, server boots on port 3000
 
+### Docker / sqld Compatibility Fixes (COMPLETE)
+- **Dockerfile**: fixed `bun.lockb` → `bun.lock` (project uses text-format lockfile)
+- **docker-compose.yml**: bumped `libsql-server` from `v0.4.7` (never existed) → `v0.24.32`
+- **docker-compose.yml**: replaced curl health check with bash `/dev/tcp` (curl not in image)
+- **libsql-wrapper.ts**: added `executeBatch()` for multi-statement DDL (sqld rejects batched SQL)
+- **libsql-wrapper.ts**: no-op `BEGIN TRANSACTION`/`COMMIT`/`ROLLBACK` (sqld Hrana-over-HTTP auto-commits)
+- **types.ts**: added `executeBatch` to `WorklogDB` interface
+- **init-db.ts, connection.ts**: use `executeBatch()` for `CREATE_TABLES`
+- Docker stack verified: `docker compose up -d` → both services healthy, webapp on :3000
+
+### Plan Update (NEW)
+- **Phase 3.5 added** to `.hermes/plans/` and `plans/`: Webapp UI Cleanup — 11 tasks to hide desktop-only features (window controls, drag region, sync status, sync bottom bar, settings sync page, updater, right-click prevention, app zoom, openWorkspaceFolder) via conditional rendering with `isDesktop()`/`isWebApp()` guards. New `src/lib/environment.ts` module.
+
 ### Code Review Fixes (13 issues found and fixed)
 All issues identified during code review were fixed:
 - jwt.ts: lazy env evaluation, claim validation, shared getServerEnv
@@ -75,6 +88,11 @@ All issues identified during code review were fixed:
 
 ## WHAT'S NOT DONE
 
+### Phase 3.5: Webapp UI Cleanup (NEW — PLANNED)
+- 11 tasks to hide desktop-only UI in webapp mode (conditional rendering, single codebase)
+- New file: `src/lib/environment.ts` (shared isDesktop/isWebApp detection)
+- See `01-architecture-overview.md` Phase 3.5 for full task list
+
 ### Phase 4: Desktop Client Adaptation (NOT STARTED)
 - Step 4.1: Remove `tauri-plugin-sql` from Cargo.toml
 - Step 4.2: Remove plugin registration from lib.rs
@@ -92,7 +110,7 @@ All issues identified during code review were fixed:
 - Step 6.3: Optimistic concurrency test
 
 ### Not verified
-- Docker build + docker-compose run (no Docker installed on this WSL system)
+- ~~Docker build + docker-compose run (no Docker installed on this WSL system)~~ — **VERIFIED**: `docker compose up -d` succeeds, both services healthy
 
 ---
 
@@ -122,14 +140,20 @@ All issues identified during code review were fixed:
 | 20 | WorklogDB missing sync() | Required for SyncEngine to trigger replication | Added sync(): Promise<void> to interface + wrapper | Fixed |
 | 21 | Unused @ts-expect-error in vite.config.js | process.env now recognized by newer TS | Removed the comment | Fixed |
 | 22 | 8 unused CSS selectors | From removed Git sync UI | Deleted all 8 selectors | Fixed |
-| 23 | -webkit-line-clamp compat warning | Missing standard line-clamp property | Added line-clamp: 2 | Fixed |
-| 24 | bun node subcommand doesn't exist | Dockerfile used bun node build/index.js | Changed to bun build/index.js | Fixed |
+|| 23 | -webkit-line-clamp compat warning | Missing standard line-clamp property | Added line-clamp: 2 | Fixed |
+|| 24 | bun node subcommand doesn't exist | Dockerfile used bun node build/index.js | Changed to bun build/index.js | Fixed |
+|| 25 | Dockerfile: bun.lockb not found | Project uses bun.lock (text format) | Changed to bun.lock | Fixed |
+|| 26 | docker-compose: v0.4.7 not found | Tag never existed on GHCR | Bumped to v0.24.32 | Fixed |
+|| 27 | sqld health check fails | curl not in libsql-server image | Replaced with bash /dev/tcp | Fixed |
+|| 28 | SQL_MANY_STATEMENTS from sqld | CREATE_TABLES is 12 statements in one call | Added executeBatch() to wrapper | Fixed |
+|| 29 | cannot rollback - no transaction | sqld auto-commits; BEGIN/COMMIT/ROLLBACK cross HTTP requests | No-op transaction statements in wrapper | Fixed |
+|| 30 | Plan files out of sync | Phase 3.5 only in .hermes/plans/ | Synced all 4 plan files in plans/ | Fixed |
 
 ---
 
 ## FILES CHANGED SUMMARY
 
-### New files (9):
+### New files (10):
 - `src/lib/server/jwt.ts`
 - `src/lib/server/env.ts`
 - `src/lib/server/init-db.ts`
@@ -139,6 +163,7 @@ All issues identified during code review were fixed:
 - `Dockerfile`
 - `docker-compose.yml`
 - `.dockerignore`
+- `.hermes/plans/2026-05-17_073600-self-hosted-webapp-libsql-sync.md`
 
 ### Rewritten files (5):
 - `src/lib/sync/types.ts`
@@ -166,11 +191,12 @@ All issues identified during code review were fixed:
 ## CURRENT STATE
 
 - Branch: `webapp`
-- Commits: 5 (feat, fix, chore, docs, cr-fix)
+- Commits: 6 (feat, fix, chore, docs, cr-fix, docker-sqld-fixes)
 - `bun run check`: 0 errors, 0 warnings
 - `bun run build`: succeeds, produces build/index.js
 - Server boots on port 3000 (verified with `bun build/index.js`)
-- Not pushed to remote
+- Docker stack verified (`docker compose up -d` → both services healthy)
+- Pushed to origin/webapp
 
 ---
 
