@@ -9,10 +9,16 @@ export interface DesktopDBOptions {
 
 export function createDesktopDB(options: DesktopDBOptions): WorklogDB {
     const dbPath = `${options.workspacePath}/.worklog/worklog.db`;
-    const client = createClient({
+    const clientConfig: Parameters<typeof createClient>[0] = {
         url: `file:${dbPath}`,
-        syncUrl: options.syncUrl,
-        authToken: options.authToken,
-    });
+    };
+    // Only pass syncUrl if configured — empty string or missing means local-only
+    if (options.syncUrl) {
+        clientConfig.syncUrl = options.syncUrl;
+    }
+    if (options.authToken) {
+        clientConfig.authToken = options.authToken;
+    }
+    const client = createClient(clientConfig);
     return wrapLibsqlClient(client);
 }

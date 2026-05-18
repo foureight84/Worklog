@@ -10,14 +10,23 @@ import { generateSyncToken } from '$lib/server/jwt';
  * Response: { token: string, expires_in: string }
  */
 export const POST: RequestHandler = async ({ request }) => {
+    let body: unknown;
     try {
-        const body = await request.json();
-        const clientId = body?.clientId;
+        body = await request.json();
+    } catch {
+        throw error(400, 'Request body must be valid JSON');
+    }
 
-        if (!clientId || typeof clientId !== 'string') {
-            throw error(400, 'clientId is required (string)');
-        }
+    if (!body || typeof body !== 'object') {
+        throw error(400, 'Request body must be a JSON object');
+    }
 
+    const clientId = (body as Record<string, unknown>).clientId;
+    if (!clientId || typeof clientId !== 'string') {
+        throw error(400, 'clientId is required (string)');
+    }
+
+    try {
         const token = await generateSyncToken(clientId);
 
         return json({
@@ -25,9 +34,6 @@ export const POST: RequestHandler = async ({ request }) => {
             expires_in: '24h',
         });
     } catch (e) {
-        if (e && typeof e === 'object' && 'status' in e) {
-            throw e; // Re-throw SvelteKit errors
-        }
         console.error('Failed to generate sync token:', e);
         throw error(500, 'Failed to generate sync token');
     }

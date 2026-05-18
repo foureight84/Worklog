@@ -190,7 +190,13 @@
 
     async function handleGenerateToken() {
         try {
-            const resp = await fetch("/api/sync/token");
+            // Generate a unique client ID for the desktop app
+            const clientId = crypto.randomUUID();
+            const resp = await fetch("/api/sync/token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clientId }),
+            });
             const data = await resp.json();
             if (data.token) {
                 generatedToken = data.token;

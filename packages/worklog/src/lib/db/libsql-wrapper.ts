@@ -17,6 +17,14 @@ export function wrapLibsqlClient(client: Client): WorklogDB {
             const result = await client.execute({ sql, args: args as any });
             return result.rowsAffected;
         },
+        async sync() {
+            // libsql Client.sync() is not in the public types but exists
+            // at runtime for embedded replicas. Cast to access it.
+            if (typeof (client as any).sync === 'function') {
+                await (client as any).sync();
+            }
+            // For direct HTTP connections, sync is a no-op
+        },
         async close() {
             // @libsql/client doesn't expose .close() on Client — no-op
         },

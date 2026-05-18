@@ -70,9 +70,9 @@
             getDb(workspacePath).then((db) => {
                 import("$lib/sync/sync-config.svelte").then(({ useSyncConfig }) => {
                     useSyncConfig().load(db).then(() => {
-                        import("$lib/sync/sync-engine").then(({ SyncEngine }) => {
-                            const engine = new SyncEngine(null);
-                            startSyncScheduler(engine);
+                        import("$lib/sync/sync-scheduler.svelte").then(({ startSyncScheduler }) => {
+                            // Pass a getDb factory so the scheduler can access the DB for persistence
+                            startSyncScheduler(() => getDb(workspacePath));
                         });
                     });
                 });

@@ -14,7 +14,12 @@ let _status = $state<SyncStatus>('disconnected');
 export function useSyncConfig() {
     async function load(db: WorklogDB): Promise<void> {
         try {
-            const rows = await db.select<any>(
+            const rows = await db.select<{
+                primary_url: string;
+                auth_token: string;
+                auto_sync: number;
+                last_synced_at: string | null;
+            }>(
                 `SELECT primary_url, auth_token, auto_sync, last_synced_at
                  FROM sync_config WHERE id = 1`
             );
@@ -60,8 +65,14 @@ export function useSyncConfig() {
         );
     }
 
-    function updateLastSynced() {
-        _config.last_synced_at = new Date().toISOString();
+    /** Update last_synced_at in memory and persist to DB (fire-and-forget). */
+    async function updateLastSynced(db: WorklogDB): Promise<void> {
+        const now = new Date().toISOString();
+        _config.last_synced_at = now;
+        await db.execute(
+            `UPDATE sync_config SET last_synced_at = ?, updated_at = ? WHERE id = 1`,
+            [now, now]
+        );
     }
 
     function setStatus(status: SyncStatus) {

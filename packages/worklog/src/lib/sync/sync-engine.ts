@@ -1,22 +1,34 @@
-import type { Client } from '@libsql/client';
+import type { WorklogDB } from '../db/types';
 import type { SyncResult } from './types';
 
+/**
+ * SyncEngine orchestrates libsql sync between a local embedded replica
+ * and the primary server.
+ *
+ * For desktop (embedded replica): calls WorklogDB.sync() which delegates
+ * to libsql Client.sync() — pushes local changes and pulls remote changes.
+ *
+ * For webapp (direct connection): sync() is a no-op since the webapp
+ * talks directly to the primary server.
+ */
 export class SyncEngine {
-    constructor(private client: Client | null) {}
+    constructor(private getDb: () => Promise<WorklogDB>) {}
 
     async sync(): Promise<SyncResult> {
-        if (!this.client) {
-            return { status: 'success', message: 'No sync configured', timestamp: new Date().toISOString() };
-        }
         try {
-            await (this.client as any).sync();
-            return { status: 'success', message: 'Synced', timestamp: new Date().toISOString() };
+            const db = await this.getDb();
+            await db.sync();
+            return {
+                status: 'success',
+                message: 'Synced',
+                timestamp: new Date().toISOString(),
+            };
         } catch (error) {
-            return { status: 'error', message: String(error), timestamp: new Date().toISOString() };
+            return {
+                status: 'error',
+                message: String(error),
+                timestamp: new Date().toISOString(),
+            };
         }
-    }
-
-    async isAvailable(): Promise<boolean> {
-        return !!this.client;
     }
 }

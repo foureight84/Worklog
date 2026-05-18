@@ -1,16 +1,11 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { getServerEnv } from './env';
 
-const JWT_SECRET = envSecret();
 const JWT_EXPIRES_IN = '24h';
 
-function envSecret(): string {
-    const secret = process.env.JWT_SECRET;
-    if (!secret || secret.length < 16) {
-        throw new Error(
-            'JWT_SECRET environment variable is required (minimum 16 characters)'
-        );
-    }
-    return secret;
+function getSecret(): Uint8Array {
+    const env = getServerEnv();
+    return new TextEncoder().encode(env.jwtSecret);
 }
 
 export interface SyncTokenPayload {
@@ -28,7 +23,7 @@ export interface SyncTokenPayload {
  * with the libsql HTTP endpoint.
  */
 export async function generateSyncToken(clientId: string): Promise<string> {
-    const secret = new TextEncoder().encode(JWT_SECRET);
+    const secret = getSecret();
 
     const token = await new SignJWT({ clientId })
         .setProtectedHeader({ alg: 'HS256' })
@@ -41,18 +36,25 @@ export async function generateSyncToken(clientId: string): Promise<string> {
 
 /**
  * Verify a JWT sync token and return the payload.
- * Throws if the token is invalid, expired, or malformed.
+ * Throws if the token is invalid, expired, malformed, or missing required claims.
  */
 export async function verifySyncToken(token: string): Promise<SyncTokenPayload> {
-    const secret = new TextEncoder().encode(JWT_SECRET);
+    const secret = getSecret();
 
     const { payload } = await jwtVerify(token, secret, {
         algorithms: ['HS256'],
     });
 
+    if (!payload.clientId || typeof payload.clientId !== 'string') {
+        throw new Error('JWT token missing required claim: clientId');
+    }
+    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number') {
+        throw new Error('JWT token missing required claims: iat, exp');
+    }
+
     return {
-        clientId: payload.clientId as string,
-        iat: payload.iat as number,
-        exp: payload.exp as number,
+        clientId: payload.clientId,
+        iat: payload.iat,
+        exp: payload.exp,
     };
 }

@@ -7,6 +7,12 @@ services:
     volumes:
       - libsql_data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Worklog webapp
   webapp:
@@ -18,8 +24,15 @@ services:
       - JWT_SECRET=${JWT_SECRET:-change-me-to-a-random-secret-at-least-16-chars}
       - PORT=3000
     depends_on:
-      - sqld
+      sqld:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   libsql_data:

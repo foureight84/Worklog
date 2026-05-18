@@ -1,6 +1,5 @@
 import type { WorkspaceMeta } from '$lib/components/app/types';
 import { getDb, closeDb, WorkspaceRepo } from '$lib/db';
-import { runMigrations } from '$lib/db/migrate';
 
 const WORKSPACE_PATH_KEY = 'last_workspace_path';
 let initInFlight: Promise<void> | null = null;
@@ -102,7 +101,7 @@ export function useWorkspace() {
             _error = null;
 
             const db = await getDb();
-            await runMigrations(db);
+            // getDb() already runs migrations + seeds default ticket types
 
             // Initialize workspace meta if not exists
             const meta = await WorkspaceRepo.getWorkspaceMeta(db);
@@ -139,7 +138,7 @@ export function useWorkspace() {
             _error = null;
 
             const db = await getDb(path);
-            await runMigrations(db);
+            // getDb() already runs migrations + seeds default ticket types
             await WorkspaceRepo.initWorkspace(db, path.split('/').pop() ?? 'My Workspace');
 
             _meta = await WorkspaceRepo.getWorkspaceMeta(db);
