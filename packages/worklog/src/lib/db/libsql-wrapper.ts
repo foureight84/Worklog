@@ -7,8 +7,8 @@ export function wrapLibsqlClient(client: Client): WorklogDB {
             const result = await client.execute({ sql, args: args as any });
             return result.rows.map(row => {
                 const obj: Record<string, unknown> = {};
-                for (const col of result.columns) {
-                    obj[col] = row[result.columns.indexOf(col)];
+                for (let i = 0; i < result.columns.length; i++) {
+                    obj[result.columns[i]] = row[i];
                 }
                 return obj as T;
             });

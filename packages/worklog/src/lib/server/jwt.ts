@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { getServerEnv } from './env';
 
 const JWT_EXPIRES_IN = '24h';
+export { JWT_EXPIRES_IN };
 
 function getSecret(): Uint8Array {
     const env = getServerEnv();

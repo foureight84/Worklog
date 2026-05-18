@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { generateSyncToken } from '$lib/server/jwt';
+import { generateSyncToken, JWT_EXPIRES_IN } from '$lib/server/jwt';
 
 /**
  * POST /api/sync/token
@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
         return json({
             token,
-            expires_in: '24h',
+            expires_in: JWT_EXPIRES_IN,
         });
     } catch (e) {
         console.error('Failed to generate sync token:', e);

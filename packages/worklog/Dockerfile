@@ -4,8 +4,8 @@ FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 
 # Copy package files first for better caching
-COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile 2>/dev/null || bun install
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY . .
@@ -19,12 +19,15 @@ FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Copy built output from builder
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/package.json ./package.json
+# curl needed for health check
+RUN apk add --no-cache curl
 
-# Install production dependencies only
-RUN bun install --production --frozen-lockfile 2>/dev/null || bun install --production
+# Copy built output and lockfile from builder
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/package.json /app/bun.lockb ./
+
+# Install production dependencies only — lockfile ensures reproducible install
+RUN bun install --production --frozen-lockfile
 
 # Expose port
 EXPOSE 3000

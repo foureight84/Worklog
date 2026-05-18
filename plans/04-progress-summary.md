@@ -166,8 +166,33 @@ All issues identified during code review were fixed:
 ## CURRENT STATE
 
 - Branch: `webapp`
-- Commits: 3 (feat, fix, chore)
+- Commits: 5 (feat, fix, chore, docs, cr-fix)
 - `bun run check`: 0 errors, 0 warnings
 - `bun run build`: succeeds, produces build/index.js
 - Server boots on port 3000 (verified with `bun build/index.js`)
 - Not pushed to remote
+
+---
+
+## SECOND CODE REVIEW (May 17, 2026) — 10 issues found, 7 fixed
+
+### Issues Fixed
+| # | Severity | File | Issue | Fix |
+|---|----------|------|-------|-----|
+| 1 | High | `sync-scheduler.svelte.ts` | SyncEngine recreated on every 30s tick | Removed SyncEngine usage; scheduler calls `db.sync()` directly |
+| 2 | High | `Dockerfile` | curl not installed in Alpine → health check broken | Added `RUN apk add --no-cache curl` |
+| 3 | High | `Dockerfile` | bun.lockb not copied to stage 2 → unpinned install | Copy bun.lockb to stage 2; remove `\|\|` fallback |
+| 4 | Medium | `connection.ts` | `null === undefined` → cache miss on no-arg getDb() | Changed `_dbWorkspacePath` type to `string \| undefined` |
+| 5 | Low | `token/+server.ts` | `expires_in: '24h'` hardcoded | Now imports `JWT_EXPIRES_IN` from jwt.ts |
+| 6 | Low | `libsql-wrapper.ts` | `indexOf(col)` in loop → O(k²) per row | Changed to index-based loop `for (let i = 0; ...)` |
+| 7 | Low | `sync-config.svelte.ts` | `Boolean(row.auto_sync)` masks non-0/1 values | Changed to `row.auto_sync === 1` |
+
+### Issues Acknowledged (not fixed — architectural / tech debt)
+| # | Severity | File | Issue | Rationale |
+|---|----------|------|-------|-----------|
+| 8 | Medium | `init-db.ts` vs `connection.ts` | Two independent libsql Clients created for webapp | Double connection is harmless; requires deeper architectural change |
+| 9 | Medium | `connection.ts`, `init-db.ts`, `seed.ts` | Default ticket types duplicated in 3 places | Extract to shared constant when defaults next change |
+| 10 | Note | `token/+server.ts` | No authentication on token endpoint | Acceptable for dev/local; production needs reverse-proxy auth |
+
+### Dead code noted
+- `sync-engine.ts`: SyncEngine class is no longer imported by any source file. Kept for now as documented abstraction layer (34 lines, no runtime cost).

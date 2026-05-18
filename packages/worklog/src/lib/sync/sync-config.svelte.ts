@@ -29,7 +29,7 @@ export function useSyncConfig() {
                 _config = {
                     primary_url: row.primary_url || '',
                     auth_token: row.auth_token || '',
-                    auto_sync: Boolean(row.auto_sync),
+                    auto_sync: row.auto_sync === 1,
                     last_synced_at: row.last_synced_at || null,
                 };
                 _status = _config.primary_url ? 'connected' : 'disconnected';

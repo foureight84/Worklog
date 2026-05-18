@@ -1,10 +1,13 @@
 import type { WorklogDB } from '../db/types';
 import { useSyncConfig } from './sync-config.svelte';
-import { SyncEngine } from './sync-engine';
 
 let interval: ReturnType<typeof setInterval> | null = null;
 const SYNC_INTERVAL_MS = 30_000;
 
+/**
+ * Start the sync scheduler. Called when a workspace is opened.
+ * getDb returns the WorklogDB instance for the current workspace.
+ */
 export function startSyncScheduler(getDb: () => Promise<WorklogDB>) {
     const syncConfig = useSyncConfig();
 
@@ -18,14 +21,12 @@ export function startSyncScheduler(getDb: () => Promise<WorklogDB>) {
 
         syncConfig.setStatus('syncing');
 
-        const db = await getDb();
-        const engine = new SyncEngine(() => Promise.resolve(db));
-        const result = await engine.sync();
-
-        if (result.status === 'success') {
+        try {
+            const db = await getDb();
+            await db.sync();
             syncConfig.setStatus('connected');
             await syncConfig.updateLastSynced(db);
-        } else {
+        } catch {
             syncConfig.setStatus('disconnected');
         }
     }, SYNC_INTERVAL_MS);

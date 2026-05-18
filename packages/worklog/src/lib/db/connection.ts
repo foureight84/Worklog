@@ -3,7 +3,7 @@ import { createWebDB } from './connection-web';
 import { createDesktopDB } from './connection-desktop';
 
 let _db: WorklogDB | null = null;
-let _dbWorkspacePath: string | null = null;
+let _dbWorkspacePath: string | undefined = undefined;
 
 function isDesktop(): boolean {
     return typeof window !== 'undefined' && !!(window as any).__TAURI__;
@@ -17,7 +17,7 @@ export async function getDb(workspacePath?: string): Promise<WorklogDB> {
     if (_db && _dbWorkspacePath !== workspacePath) {
         await _db.close();
         _db = null;
-        _dbWorkspacePath = null;
+        _dbWorkspacePath = undefined;
     }
 
     if (isDesktop() && workspacePath) {
@@ -42,7 +42,7 @@ export async function getDb(workspacePath?: string): Promise<WorklogDB> {
         _db = createWebDB();
     }
 
-    _dbWorkspacePath = workspacePath ?? null;
+    _dbWorkspacePath = workspacePath;
 
     // ── Run schema creation and migrations ──────────────
     const { CREATE_TABLES } = await import('./schema');
@@ -80,6 +80,6 @@ export async function closeDb(): Promise<void> {
     if (_db) {
         await _db.close();
         _db = null;
-        _dbWorkspacePath = null;
+        _dbWorkspacePath = undefined;
     }
 }
