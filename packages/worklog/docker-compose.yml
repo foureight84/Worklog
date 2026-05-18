@@ -4,6 +4,8 @@ services:
     image: ghcr.io/tursodatabase/libsql-server:v0.24.32
     ports:
       - "8080:8080"
+    environment:
+      - SQLD_DB_PATH=/data
     volumes:
       - libsql_data:/data
     restart: unless-stopped
